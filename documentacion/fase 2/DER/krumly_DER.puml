@@ -1,0 +1,201 @@
+@startuml Krumly_DER
+skinparam linetype ortho
+skinparam packageStyle rectangle
+skinparam shadowColor #CB48B7
+title Krumly - Diagrama Entidad-Relación (DER) Normalizado 3NF (Desacoplado)
+header Krumly Manager - Sistema de Gestión y Control Operativo para Repostería
+
+entity "usuarios" as usuarios {
+    * id : UUID <<PK>>
+    --
+    * username : VARCHAR(50) <<UNIQUE>>
+    * email : VARCHAR(100) <<UNIQUE>>
+    * password_hash : VARCHAR(255)
+    * role : VARCHAR(20) <<CHECK: 'admin', 'cajero'>>
+    * activo : BOOLEAN
+    * created_at : TIMESTAMP
+    updated_at : TIMESTAMP
+}
+
+entity "clientes" as clientes {
+    * id : UUID <<PK>>
+    --
+    * nombre : VARCHAR(100)
+    ubicacion : VARCHAR(255)
+    created_at : TIMESTAMP
+}
+
+entity "categorias" as categorias {
+    * id : UUID <<PK>>
+    --
+    * nombre : VARCHAR(100)
+    * tipo : VARCHAR(20) <<CHECK: 'producto', 'gasto'>>
+    created_at : TIMESTAMP
+}
+
+entity "insumos" as insumos {
+    * id : UUID <<PK>>
+    --
+    * nombre : VARCHAR(100)
+    * unidad_medida : VARCHAR(20) <<CHECK: 'gramos', 'ml', 'unidades'>>
+    * cantidad_empaque : DECIMAL(10,2)
+    * precio_compra : DECIMAL(10,2)
+    * costo_unitario : DECIMAL(12,4) <<CALCULATED>>
+    * stock_actual : DECIMAL(10,2)
+    * stock_minimo : DECIMAL(10,2)
+    * created_at : TIMESTAMP
+    updated_at : TIMESTAMP
+}
+
+entity "recetas" as recetas {
+    * id : UUID <<PK>>
+    --
+    * nombre : VARCHAR(100)
+    * peso_total_mezcla_gramos : DECIMAL(10,2)
+    * costo_total_lote : DECIMAL(10,2) <<CALCULATED>>
+    * costo_por_gramo : DECIMAL(12,4) <<CALCULATED>>
+    * usuario_id : UUID <<FK>>
+    * created_at : TIMESTAMP
+    updated_at : TIMESTAMP
+}
+
+entity "receta_insumos" as receta_insumos {
+    * id : UUID <<PK>>
+    --
+    * receta_id : UUID <<FK>>
+    * insumo_id : UUID <<FK>>
+    * cantidad : DECIMAL(10,2)
+    * created_at : TIMESTAMP
+}
+
+entity "productos" as productos {
+    * id : UUID <<PK>>
+    --
+    * nombre : VARCHAR(100)
+    categoria_id : UUID <<FK>>
+    receta_id : UUID <<FK>>
+    peso_masa_gramos : DECIMAL(10,2)
+    * costo_masa_unidad : DECIMAL(10,2) <<CALCULATED>>
+    costo_insumos_adicionales : DECIMAL(10,2) <<CALCULATED>>
+    costo_empaque : DECIMAL(10,2)
+    costo_mano_obra : DECIMAL(10,2)
+    costo_depreciacion : DECIMAL(10,2)
+    porcentaje_desperdicio : DECIMAL(5,2)
+    * costo_directo_total : DECIMAL(10,2) <<CALCULATED>>
+    * precio_venta : DECIMAL(10,2)
+    * margen_ganancia_porcentaje : DECIMAL(5,2) <<CALCULATED>>
+    * stock_actual : INT
+    * stock_minimo : INT
+    * activo : BOOLEAN
+    * created_at : TIMESTAMP
+    updated_at : TIMESTAMP
+}
+
+entity "producto_insumos_adicionales" as producto_insumos_adicionales {
+    * id : UUID <<PK>>
+    --
+    * producto_id : UUID <<FK>>
+    * insumo_id : UUID <<FK>>
+    * cantidad : DECIMAL(10,2)
+    * created_at : TIMESTAMP
+}
+
+entity "lotes_produccion" as lotes_produccion {
+    * id : UUID <<PK>>
+    --
+    * producto_id : UUID <<FK>>
+    receta_id : UUID <<FK>>
+    * cantidad_producida : INT
+    * fecha_produccion : TIMESTAMP
+    notas : TEXT
+    * usuario_id : UUID <<FK>>
+    * created_at : TIMESTAMP
+}
+
+entity "mermas" as mermas {
+    * id : UUID <<PK>>
+    --
+    * producto_id : UUID <<FK>>
+    * cantidad : INT
+    * motivo : VARCHAR(255)
+    * fecha_merma : TIMESTAMP
+    * usuario_id : UUID <<FK>>
+    * created_at : TIMESTAMP
+}
+
+entity "gastos" as gastos {
+    * id : UUID <<PK>>
+    --
+    * tipo_gasto : VARCHAR(20) <<CHECK: 'fijo', 'variable'>>
+    categoria_id : UUID <<FK>>
+    * concepto : VARCHAR(150)
+    * monto_usd : DECIMAL(10,2)
+    monto_ves : DECIMAL(12,2)
+    tasa_cambio : DECIMAL(10,2)
+    metodo_pago : VARCHAR(30)
+    * fecha_gasto : TIMESTAMP
+    * usuario_id : UUID <<FK>>
+    * created_at : TIMESTAMP
+}
+
+entity "ventas" as ventas {
+    * id : UUID <<PK>>
+    --
+    * codigo_venta : VARCHAR(20) <<UNIQUE>>
+    * fecha_venta : TIMESTAMP
+    cliente_id : UUID <<FK>>
+    * total_venta : DECIMAL(10,2)
+    * estado_sincronizacion : VARCHAR(20) <<CHECK: 'online', 'offline_pending', 'offline_synced'>>
+    * usuario_id : UUID <<FK>>
+    * created_at : TIMESTAMP
+}
+
+entity "venta_detalles" as venta_detalles {
+    * id : UUID <<PK>>
+    --
+    * venta_id : UUID <<FK>>
+    * producto_id : UUID <<FK>>
+    * cantidad : INT
+    * precio_unitario : DECIMAL(10,2)
+    * subtotal : DECIMAL(10,2)
+}
+
+entity "venta_pagos" as venta_pagos {
+    * id : UUID <<PK>>
+    --
+    * venta_id : UUID <<FK>>
+    * metodo_pago : VARCHAR(30) <<CHECK: 'efectivo_usd', 'efectivo_ves', 'pago_movil', 'punto_venta', 'transferencia'>>
+    * monto_usd : DECIMAL(10,2)
+    monto_ves : DECIMAL(12,2)
+    tasa_cambio : DECIMAL(10,2)
+    referencia_pago : VARCHAR(50)
+}
+
+' Relaciones actualizadas (3NF)
+usuarios ||--o{ ventas : "registra"
+usuarios ||--o{ gastos : "registra"
+usuarios ||--o{ mermas : "registra"
+usuarios ||--o{ lotes_produccion : "registra"
+usuarios ||--o{ recetas : "crea"
+
+clientes ||--o{ ventas : "realiza (opcional)"
+
+categorias ||--o{ productos : "clasifica"
+categorias ||--o{ gastos : "clasifica"
+
+recetas ||--|{ receta_insumos : "contiene"
+insumos ||--o{ receta_insumos : "se usa en"
+recetas ||--o{ productos : "base para"
+recetas ||--o{ lotes_produccion : "usada en"
+
+productos ||--o{ producto_insumos_adicionales : "incluye rellenos/toppings"
+insumos ||--o{ producto_insumos_adicionales : "usado como adicional"
+
+productos ||--o{ lotes_produccion : "se fabrica en"
+productos ||--o{ mermas : "registra mermas"
+
+ventas ||--|{ venta_detalles : "incluye"
+productos ||--o{ venta_detalles : "se vende en"
+
+ventas ||--|{ venta_pagos : "desglosa pagos en"
+@enduml

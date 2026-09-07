@@ -1,0 +1,164 @@
+@startuml Diagramas_Flujo_Krumly_Reposteria
+
+' Configuración de estilos visuales PlantUML
+skinparam style strictuml
+skinparam SequenceMessageAlignment center
+skinparam ActivityBackgroundColor #F9F9F9
+skinparam ActivityBorderColor #2B2D42
+skinparam ActivityStartColor #2EC4B6
+skinparam ActivityEndColor #E71D36
+skinparam DiamondBackgroundColor #FF9F1C
+skinparam DiamondBorderColor #2B2D42
+
+title Krumly - Diagramas de Flujo del Sistema de Gestión (NestJS + React + Supabase)
+
+' ========================================================
+' FLUJO 1: REGISTRO Y GESTIÓN DE INSUMOS
+' ========================================================
+partition "Flujo 1: Registro de Insumos y Alerta de Stock Mínimo" {
+    (*) --> "Usuario ingresa a módulo Insumos"
+    --> "Ingresar: Nombre, Unidad, Cantidad Paquete, Precio Compra, Stock Mínimo"
+    --> "API NestJS calcula Costo Unitario (C_unitario = P_compra / Q_paquete)"
+    --> "NestJS guarda Insumo en Supabase vía Prisma ORM"
+    --> "Verificar si Stock Actual <= Stock Mínimo"
+    if "¿Stock Actual <= Stock Mínimo?" then
+        --> [Sí] "Mostrar Alerta Visual en Dashboard: 'Insumo Bajo en Stock'"
+        --> "Recalcular Recetas e Insumos Adicionales asociados"
+    else
+        --> [No] "Recalcular Recetas e Insumos Adicionales asociados"
+    endif
+    --> "Actualizar Costos Directos Totales de Productos"
+    --> (*)
+}
+
+' ========================================================
+' FLUJO 2A: CREACIÓN DE RECETA BASE (COCINA)
+' ========================================================
+partition "Flujo 2A: Creación de Receta Base (Mezcla/Masa en Cocina)" {
+    (*) --> "Usuario ingresa a 'Recetas Base -> Nueva Receta'"
+    --> "Ingresar Nombre de la Mezcla (ej. 'Masa Base de Vainilla')"
+    repeat
+        --> "Seleccionar Insumo e ingresar Cantidad en gramos/ml para la mezcla completa"
+    repeat while "¿Agregar otro ingrediente a la mezcla?" is (Sí)
+    -> [No] "Ingresar Peso Total de la Mezcla obtenida (ej. 1,080g)"
+    --> "API NestJS calcula Costo Total del Lote y Costo por Gramo:\nC_gramo = Costo_Total_Mezcla / Peso_Total_Gramos"
+    --> "Guardar Receta Base en Supabase vía NestJS"
+    --> (*)
+}
+
+' ========================================================
+' FLUJO 2B: DEFINICIÓN DE PRODUCTO Y COSTEO COMPLETO
+' ========================================================
+partition "Flujo 2B: Definición de Producto y Costeo Completo (Desacoplado)" {
+    (*) --> "Usuario selecciona 'Productos -> Nuevo Producto'"
+    --> "Ingresar Nombre (ej. 'Galleta Vainilla Rellena 120g'), Categoría y Stock Mínimo"
+    --> "(Opcional) Seleccionar Receta Base utilizada e indicar Gramos de masa (ej. 120g)"
+    --> "API NestJS calcula Costo de Masa por Unidad (C_masa = Gramos * Costo_por_Gramo)"
+    repeat
+        --> "(Opcional) Seleccionar Insumos Adicionales (Relleno/Toppings/Decoración) e ingresar Cantidad"
+    repeat while "¿Agregar otro relleno o topping?" is (Sí)
+    -> [No] "Ingresar Costos Indirectos: Empaque, Mano de Obra, Depreciación, % Desperdicio"
+    --> "API NestJS calcula Costo Directo Total:\nC_directo_total = C_masa + C_adicionales + C_empaque + C_mano_obra + C_depreciacion + C_desperdicio"
+    --> "Ingresar Precio de Venta Sugerido"
+    --> "Calcular Ganancia Bruta (PV - C_directo_total) y Margen %"
+    if "Precio Venta > Costo Directo Total?" then
+        --> [Sí] "Guardar Producto en Supabase vía NestJS + Prisma"
+        --> (*)
+    else
+        --> [No] "Mostrar Alerta: 'El precio sugerido genera pérdida'"
+        --> "Ingresar Precio de Venta Sugerido"
+    endif
+}
+
+' ========================================================
+' FLUJO 3: VENTA POS, PAGO MIXTO Y SYNC MODO OFFLINE
+' ========================================================
+partition "Flujo 3: Venta POS, Pago Mixto y Sincronización Offline" {
+    (*) --> "Usuario ingresa a pantalla POS Krumly"
+    --> "Cargar Catálogo de Productos y Stock Disponible"
+    if "Stock Actual <= Stock Mínimo?" then
+        --> [Sí] "Mostrar Indicador Visual: 'Stock Bajo'"
+        --> "Seleccionar Producto(s) y Cantidad"
+    else
+        --> [No] "Seleccionar Producto(s) y Cantidad"
+    endif
+    --> "(Opcional) Seleccionar Cliente registrado o Venta a Público General (Anónimo)"
+    --> "Seleccionar Método de Pago: (Efectivo USD/VES, Pago Móvil, Punto, Mixto)"
+    if "¿Es Pago Mixto?" then
+        --> [Sí] "Desglosar Montos Parciales por Método en USD/VES"
+        --> "Validar que la suma de pagos == Total Venta"
+    else
+        --> [No] "Registrar Monto en Método Seleccionado"
+    endif
+    --> "Presionar 'Confirmar Venta'"
+    if "¿Hay conexión a Internet?" then
+        --> [Sí] "Enviar Venta a API NestJS"
+        --> "NestJS procesa transacción Prisma en Supabase"
+        --> "Deducir Stock de Producto y Actualizar KPIs"
+        --> "Mostrar Confirmación: 'Venta Registrada'"
+        --> (*)
+    else
+        --> [No] "Guardar Venta y Pagos en IndexedDB (Modo Offline)"
+        --> "Deducir Stock Visualmente en PWA"
+        --> "Mostrar Banner: 'Venta guardada Offline'"
+        --> "Al detectar conexión, enviar IndexedDB -> NestJS Backend"
+        --> "NestJS valida y sincroniza en Supabase (estado: offline_synced)"
+        --> (*)
+    endif
+}
+
+' ========================================================
+' FLUJO 4: REGISTRO DE MERMAS Y GASTOS OPERATIVOS
+' ========================================================
+partition "Flujo 4: Registro de Mermas y Gastos Operativos" {
+    (*) --> "Usuario selecciona acción: 'Merma' o 'Gasto'"
+    if "¿Es Registro de Merma o Gasto?" then
+        --> [Merma] "Seleccionar Producto Terminado, Cantidad y Motivo"
+        --> "API NestJS reduce Stock Actual de Producto"
+        --> "Guardar Registro de Merma en Supabase"
+        --> (*)
+    else
+        --> [Gasto] "Ingresar Categoría (Fijo/Variable), Concepto, Monto USD/VES y (Opcional) Método de Pago"
+        --> "API NestJS guarda Registro de Gasto en Supabase"
+        --> "Recalcular Egresos Totales del Período"
+        --> "Actualizar Punto de Equilibrio en Dashboard"
+        --> (*)
+    endif
+}
+
+' ========================================================
+' FLUJO 5: DASHBOARD FINANCIERO Y COMPARATIVAS DE PERÍODO
+' ========================================================
+partition "Flujo 5: Dashboard Financiero y Comparativas Temporales" {
+    (*) --> "Usuario abre Dashboard Krumly"
+    --> "Seleccionar Período Principal y Período de Comparación (ej. Agosto vs Julio)"
+    --> "API NestJS consulta Ventas, Costos Directos Totales y Gastos"
+    --> "Calcular Utilidad Neta y Ticket Promedio"
+    --> "Calcular % Variación de Ingresos, Egresos y Utilidad"
+    --> "Calcular Punto de Equilibrio (PE_u = Gastos / (PV_prom - CD_total_prom))"
+    --> "Renderizar Gráficos Comparativos y Clientes Frecuentes"
+    --> (*)
+}
+
+' ========================================================
+' FLUJO 6: REGISTRO DE LOTE DE PRODUCCIÓN
+' ========================================================
+partition "Flujo 6: Registro de Lote de Producción" {
+    (*) --> "Usuario ingresa a 'Producción -> Registrar Lote'"
+    --> "Seleccionar Producto y Cantidad a producir"
+    --> "API NestJS verifica stock de insumos (receta base + adicionales)"
+    if "¿Hay suficientes insumos?" then
+        --> [Sí] "NestJS descuenta insumos del inventario según receta"
+        --> "NestJS incrementa stock de producto terminado"
+        --> "Calcular costo total del lote"
+        --> "Guardar lote_produccion asociando receta_id y usuario_id"
+        --> "Mostrar confirmación: 'Lote registrado y stock actualizado'"
+        --> (*)
+    else
+        --> [No] "Mostrar desglose de faltantes (ej. Harina insuficiente)"
+        --> "Ofrecer acceso directo para registrar compra de insumos"
+        --> (*)
+    endif
+}
+
+@enduml
