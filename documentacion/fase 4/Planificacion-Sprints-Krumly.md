@@ -34,13 +34,13 @@ Cada tarea incluye una casilla de verificación (`- [ ]`). Cuando termines un ti
 
 ### 📋 Checklist de Tareas del Sprint 1:
 
-- [ ] **TSK-101 [Setup]: Inicialización del Proyecto y Configuración Visual**
+- [x] **TSK-101 [Setup]: Inicialización del Proyecto y Configuración Visual**
   - Inicializar carpeta `frontend/` (React + TailwindCSS).
   - Inicializar carpeta `backend/` (NestJS TypeScript).
   - Configurar la paleta oficial en `tailwind.config.js` (`#AA1616` Krumly Red, `#FFF3E8` Soft Cream, `#1A0A0A` Dark Text).
   - *Criterio de Aceptación:* `npm run dev` en frontend y backend levantan sin errores.
 
-- [ ] **TSK-102 [DB]: Configuración de Prisma ORM y Migración de Esquema 3NF**
+- [x] **TSK-102 [DB]: Configuración de Prisma ORM y Migración de Esquema 3NF**
   - Crear `backend/prisma/schema.prisma` con las 14 tablas normalizadas: `usuarios`, `clientes`, `categorias`, `insumos`, `recetas`, `receta_insumos`, `productos`, `producto_insumos_adicionales`, `lotes_produccion`, `mermas`, `gastos`, `ventas`, `venta_detalles`, `venta_pagos`.
   - Ejecutar `npx prisma migrate dev --name init_3nf` hacia Supabase.
   - *Criterio de Aceptación:* Todas las tablas creadas en Supabase PostgreSQL con sus relaciones y checks.
@@ -155,3 +155,4 @@ Cada tarea incluye una casilla de verificación (`- [ ]`). Cuando termines un ti
   - Base de Datos de Producción en Supabase.
   - Frontend React PWA desplegado en Vercel.
   - *Criterio de Aceptación:* Aplicación accesible vía URL pública con HTTPS y rendimiento rápido.
+

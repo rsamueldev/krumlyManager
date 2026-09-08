@@ -1,0 +1,280 @@
+// Prisma Schema for Krumly Manager (Reposteria / Galletas)
+// Database Engine: PostgreSQL via Supabase
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum Role {
+  admin
+  cajero
+}
+
+enum TipoCategoria {
+  producto
+  gasto
+}
+
+enum UnidadMedida {
+  gramos
+  ml
+  unidades
+}
+
+enum TipoGasto {
+  fijo
+  variable
+}
+
+enum EstadoSync {
+  online
+  offline_pending
+  offline_synced
+}
+
+enum MetodoPago {
+  efectivo_usd
+  efectivo_ves
+  pago_movil
+  punto_venta
+  transferencia
+}
+
+model Usuario {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  username     String    @unique @db.VarChar(50)
+  email        String    @unique @db.VarChar(100)
+  passwordHash String    @map("password_hash") @db.VarChar(255)
+  role         Role      @default(admin)
+  activo       Boolean   @default(true)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt    DateTime? @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  recetas         Receta[]
+  lotesProduccion LoteProduccion[]
+  mermas          Merma[]
+  gastos          Gasto[]
+  ventas          Venta[]
+
+  @@map("usuarios")
+}
+
+model Cliente {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nombre    String   @db.VarChar(100)
+  telefono  String?  @db.VarChar(30)
+  ubicacion String?  @db.VarChar(255)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  ventas Venta[]
+
+  @@map("clientes")
+}
+
+model Categoria {
+  id        String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nombre    String        @db.VarChar(100)
+  tipo      TipoCategoria
+  createdAt DateTime      @default(now()) @map("created_at") @db.Timestamp(6)
+
+  productos Producto[]
+  gastos    Gasto[]
+
+  @@map("categorias")
+}
+
+model Insumo {
+  id              String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nombre          String       @db.VarChar(100)
+  unidadMedida    UnidadMedida @map("unidad_medida")
+  cantidadEmpaque Decimal      @map("cantidad_empaque") @db.Decimal(10, 2)
+  precioCompra    Decimal      @map("precio_compra") @db.Decimal(10, 2)
+  costoUnitario   Decimal      @map("costo_unitario") @db.Decimal(12, 4)
+  stockActual     Decimal      @default(0.00) @map("stock_actual") @db.Decimal(10, 2)
+  stockMinimo     Decimal      @default(500.00) @map("stock_minimo") @db.Decimal(10, 2)
+  createdAt       DateTime     @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt       DateTime?    @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  recetaInsumos              RecetaInsumo[]
+  productoInsumosAdicionales ProductoInsumoAdicional[]
+
+  @@map("insumos")
+}
+
+model Receta {
+  id                    String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nombre                String    @db.VarChar(100)
+  pesoTotalMezclaGramos Decimal   @map("peso_total_mezcla_gramos") @db.Decimal(10, 2)
+  costoTotalLote        Decimal   @default(0.00) @map("costo_total_lote") @db.Decimal(10, 2)
+  costoPorGramo         Decimal   @default(0.00) @map("costo_por_gramo") @db.Decimal(12, 4)
+  usuarioId             String    @map("usuario_id") @db.Uuid
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt             DateTime? @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  usuario         Usuario          @relation(fields: [usuarioId], references: [id])
+  insumos         RecetaInsumo[]
+  productos       Producto[]
+  lotesProduccion LoteProduccion[]
+
+  @@map("recetas")
+}
+
+model RecetaInsumo {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  recetaId  String   @map("receta_id") @db.Uuid
+  insumoId  String   @map("insumo_id") @db.Uuid
+  cantidad  Decimal  @db.Decimal(10, 2)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  receta Receta @relation(fields: [recetaId], references: [id], onDelete: Cascade)
+  insumo Insumo @relation(fields: [insumoId], references: [id])
+
+  @@map("receta_insumos")
+}
+
+model Producto {
+  id                       String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nombre                   String    @db.VarChar(100)
+  categoriaId              String?   @map("categoria_id") @db.Uuid
+  recetaId                 String?   @map("receta_id") @db.Uuid
+  pesoMasaGramos           Decimal?  @default(0.00) @map("peso_masa_gramos") @db.Decimal(10, 2)
+  costoMasaUnidad          Decimal   @default(0.00) @map("costo_masa_unidad") @db.Decimal(10, 2)
+  costoInsumosAdicionales  Decimal?  @default(0.00) @map("costo_insumos_adicionales") @db.Decimal(10, 2)
+  costoEmpaque             Decimal?  @default(0.00) @map("costo_empaque") @db.Decimal(10, 2)
+  costoManoObra            Decimal?  @default(0.00) @map("costo_mano_obra") @db.Decimal(10, 2)
+  costoDepreciacion        Decimal?  @default(0.00) @map("costo_depreciacion") @db.Decimal(10, 2)
+  porcentajeDesperdicio    Decimal?  @default(5.00) @map("porcentaje_desperdicio") @db.Decimal(5, 2)
+  costoDirectoTotal        Decimal   @default(0.00) @map("costo_directo_total") @db.Decimal(10, 2)
+  precioVenta              Decimal   @map("precio_venta") @db.Decimal(10, 2)
+  margenGananciaPorcentaje Decimal   @default(0.00) @map("margen_ganancia_porcentaje") @db.Decimal(5, 2)
+  stockActual              Int       @default(0) @map("stock_actual")
+  stockMinimo              Int       @default(10) @map("stock_minimo")
+  activo                   Boolean   @default(true)
+  createdAt                DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt                DateTime? @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  categoria          Categoria?                @relation(fields: [categoriaId], references: [id])
+  receta             Receta?                   @relation(fields: [recetaId], references: [id])
+  insumosAdicionales ProductoInsumoAdicional[]
+  lotesProduccion    LoteProduccion[]
+  mermas             Merma[]
+  ventaDetalles      VentaDetalle[]
+
+  @@map("productos")
+}
+
+model ProductoInsumoAdicional {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  productoId String   @map("producto_id") @db.Uuid
+  insumoId   String   @map("insumo_id") @db.Uuid
+  cantidad   Decimal  @db.Decimal(10, 2)
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  producto Producto @relation(fields: [productoId], references: [id], onDelete: Cascade)
+  insumo   Insumo   @relation(fields: [insumoId], references: [id])
+
+  @@map("producto_insumos_adicionales")
+}
+
+model LoteProduccion {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  productoId        String   @map("producto_id") @db.Uuid
+  recetaId          String?  @map("receta_id") @db.Uuid
+  cantidadProducida Int      @map("cantidad_producida")
+  fechaProduccion   DateTime @default(now()) @map("fecha_produccion") @db.Timestamp(6)
+  notas             String?  @db.Text
+  usuarioId         String   @map("usuario_id") @db.Uuid
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  producto Producto @relation(fields: [productoId], references: [id])
+  receta   Receta?  @relation(fields: [recetaId], references: [id])
+  usuario  Usuario  @relation(fields: [usuarioId], references: [id])
+
+  @@map("lotes_produccion")
+}
+
+model Merma {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  productoId String   @map("producto_id") @db.Uuid
+  cantidad   Int
+  motivo     String   @db.VarChar(255)
+  fechaMerma DateTime @default(now()) @map("fecha_merma") @db.Timestamp(6)
+  usuarioId  String   @map("usuario_id") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  producto Producto @relation(fields: [productoId], references: [id])
+  usuario  Usuario  @relation(fields: [usuarioId], references: [id])
+
+  @@map("mermas")
+}
+
+model Gasto {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tipoGasto   TipoGasto @map("tipo_gasto")
+  categoriaId String?   @map("categoria_id") @db.Uuid
+  concepto    String    @db.VarChar(150)
+  montoUsd    Decimal   @map("monto_usd") @db.Decimal(10, 2)
+  montoVes    Decimal?  @map("monto_ves") @db.Decimal(12, 2)
+  tasaCambio  Decimal?  @map("tasa_cambio") @db.Decimal(10, 2)
+  metodoPago  String?   @map("metodo_pago") @db.VarChar(30)
+  fechaGasto  DateTime  @default(now()) @map("fecha_gasto") @db.Timestamp(6)
+  usuarioId   String    @map("usuario_id") @db.Uuid
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+
+  categoria Categoria? @relation(fields: [categoriaId], references: [id])
+  usuario   Usuario    @relation(fields: [usuarioId], references: [id])
+
+  @@map("gastos")
+}
+
+model Venta {
+  id                   String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  codigoVenta          String     @unique @map("codigo_venta") @db.VarChar(20)
+  fechaVenta           DateTime   @default(now()) @map("fecha_venta") @db.Timestamp(6)
+  clienteId            String?    @map("cliente_id") @db.Uuid
+  totalVenta           Decimal    @map("total_venta") @db.Decimal(10, 2)
+  estadoSincronizacion EstadoSync @default(online) @map("estado_sincronizacion")
+  usuarioId            String     @map("usuario_id") @db.Uuid
+  createdAt            DateTime   @default(now()) @map("created_at") @db.Timestamp(6)
+
+  cliente  Cliente?       @relation(fields: [clienteId], references: [id])
+  usuario  Usuario        @relation(fields: [usuarioId], references: [id])
+  detalles VentaDetalle[]
+  pagos    VentaPago[]
+
+  @@map("ventas")
+}
+
+model VentaDetalle {
+  id             String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ventaId        String  @map("venta_id") @db.Uuid
+  productoId     String  @map("producto_id") @db.Uuid
+  cantidad       Int
+  precioUnitario Decimal @map("precio_unitario") @db.Decimal(10, 2)
+  subtotal       Decimal @db.Decimal(10, 2)
+
+  venta    Venta    @relation(fields: [ventaId], references: [id], onDelete: Cascade)
+  producto Producto @relation(fields: [productoId], references: [id])
+
+  @@map("venta_detalles")
+}
+
+model VentaPago {
+  id             String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ventaId        String     @map("venta_id") @db.Uuid
+  metodoPago     MetodoPago @map("metodo_pago")
+  montoUsd       Decimal    @map("monto_usd") @db.Decimal(10, 2)
+  montoVes       Decimal?   @map("monto_ves") @db.Decimal(12, 2)
+  tasaCambio     Decimal?   @map("tasa_cambio") @db.Decimal(10, 2)
+  referenciaPago String?    @map("referencia_pago") @db.VarChar(50)
+
+  venta Venta @relation(fields: [ventaId], references: [id], onDelete: Cascade)
+
+  @@map("venta_pagos")
+}
