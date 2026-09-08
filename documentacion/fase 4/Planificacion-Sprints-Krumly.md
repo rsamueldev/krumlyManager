@@ -1,4 +1,4 @@
-# Planificación de Sprints y Guía de Ejecución (Solo Developer)
+﻿# Planificación de Sprints y Guía de Ejecución (Solo Developer)
 ## Krumly Manager - Sistema de Gestión y Control Operativo para Repostería
 
 Este documento es la **guía maestra de planificación y ejecución** diseñada específicamente para el desarrollo en solitario (*Solo Developer*) de **Krumly Manager**. 
@@ -45,7 +45,7 @@ Cada tarea incluye una casilla de verificación (`- [ ]`). Cuando termines un ti
   - Ejecutar `npx prisma migrate dev --name init_3nf` hacia Supabase.
   - *Criterio de Aceptación:* Todas las tablas creadas en Supabase PostgreSQL con sus relaciones y checks.
 
-- [ ] **TSK-103 [Auth]: Autenticación y Control de Acceso por Roles (RBAC)**
+- [x] **TSK-103 [Auth]: Autenticación y Control de Acceso por Roles (RBAC)**
   - Implementar login en NestJS con JWT / Supabase Auth.
   - Crear Guard de autorización (`RolesGuard`).
   - *Criterio de Aceptación:* Usuario Admin accede a todo; Cajero solo a POS e Inventario de galletas.
