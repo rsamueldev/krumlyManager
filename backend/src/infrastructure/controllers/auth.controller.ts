@@ -18,7 +18,7 @@ class RegistrarDto {
   rol!: RolUsuario;
 }
 
-@Controller('api/v1/auth')
+@Controller('auth')
 export class AuthController {
   constructor(
     private readonly loginUsuarioUseCase: LoginUsuarioUseCase,
