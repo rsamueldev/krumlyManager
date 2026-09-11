@@ -71,17 +71,17 @@ ombre, 	ipo: 'producto' | 'gasto').
 
 ### 📋 Checklist de Tareas del Sprint 2:
 
-- [ ] **TSK-201 [Recetas]: Constructor de Receta Base en Cocina (Fullstack)**
+- [x] **TSK-201 [Recetas]: Constructor de Receta Base en Cocina (Fullstack)**
   - **Backend:** Casos de uso y API para ecetas y eceta_insumos. Cálculo de {\text{total lote}}$ y {\text{por gramo masa}} = \frac{C_{\text{total lote}}}{W_{\text{mezcla gramos}}}$.
   - **Frontend:** Vista/Pantalla del Constructor de Recetas en React + TailwindCSS con buscador de insumos y cálculo interactivo de costo por gramo en tiempo real.
   - *Criterio de Aceptación:* Una mezcla de 1,080g con insumos de .00 refleja visualmente .00833/g.
 
-- [ ] **TSK-202 [Productos]: Definición de Producto y Masa Asignada (Fullstack)**
+- [x] **TSK-202 [Productos]: Definición de Producto y Masa Asignada (Fullstack)**
   - **Backend:** Módulo productos asociando eceta_id e indicando gramos de masa usados por unidad. Cálculo de {\text{masa unidad}} = W_{\text{masa asignada}} \times C_{\text{por gramo masa}}$.
   - **Frontend:** Pantalla de Catálogo de Productos y Ficha Técnica de Galletas en React con tarjetas visuales.
   - *Criterio de Aceptación:* Galleta de 120g calcula automáticamente .00 USD de masa en la interfaz.
 
-- [ ] **TSK-203 [Productos]: Insumos Adicionales (Rellenos/Toppings) e Indirectos (Fullstack)**
+- [x] **TSK-203 [Productos]: Insumos Adicionales (Rellenos/Toppings) e Indirectos (Fullstack)**
   - **Backend:** Vincular insumos adicionales en producto_insumos_adicionales. Campos para empaque, mano de obra, depreciación, desperdicio % y precio de venta. Cálculo de Costo Directo Total y Margen %.
   - **Frontend:** Modal interactivo en React para agregar toppings (ej. Nutella) y barra visual de Margen de Ganancia.
   - *Criterio de Aceptación:* Si Precio Venta <= Costo Directo Total, la UI muestra una alerta roja de pérdida.
