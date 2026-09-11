@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom';
 import React, { useState } from 'react';
 import { useTasaCambio } from '../../context/TasaCambioContext';
 import { Bell, DollarSign, LogOut, Menu, X } from 'lucide-react';
@@ -25,40 +26,45 @@ export const Navbar: React.FC<NavbarProps> = ({ toggleSidebar, tituloSeccion = '
 
   return (
     <>
-      <header className="h-16 bg-white border-b border-krumly-border px-4 sticky top-0 z-30 flex items-center justify-between shadow-xs shrink-0">
+      <header className="h-16 bg-white border-b border-krumly-border px-3 sm:px-4 sticky top-0 z-10 flex items-center justify-between shadow-xs shrink-0">
         {/* Lado Izquierdo: Botón Menú + Título */}
-        <div className="flex items-center space-x-3">
+        <div className="flex items-center space-x-2 sm:space-x-3 truncate mr-2">
           <button
             onClick={toggleSidebar}
-            className="p-2 rounded-lg text-krumly-chocolate hover:bg-krumly-cream transition-colors cursor-pointer"
+            className="p-2 rounded-lg text-krumly-chocolate hover:bg-krumly-cream transition-colors cursor-pointer shrink-0"
             title="Conmutar Menú Lateral"
           >
             <Menu className="w-5 h-5 text-krumly-red" />
           </button>
           
-          <div className="flex items-center space-x-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-krumly-red animate-pulse" />
-            <h1 className="font-heading text-lg font-bold text-krumly-chocolate tracking-tight">
+          <div className="flex items-center space-x-2 truncate">
+            <span className="w-2.5 h-2.5 rounded-full bg-krumly-red animate-pulse shrink-0" />
+            <h1 className="font-heading text-sm sm:text-base md:text-lg font-bold text-krumly-chocolate tracking-tight truncate">
               {tituloSeccion}
             </h1>
           </div>
         </div>
 
         {/* Lado Derecho: Widget Tasa del Día + Notificaciones + Perfil */}
-        <div className="flex items-center space-x-3">
+        <div className="flex items-center space-x-2 sm:space-x-3 shrink-0">
           {/* Widget Tasa del Día Bs/USD */}
           <button
             onClick={() => {
               setNuevaTasa(tasaCambioBs.toString());
               setModalAbierto(true);
             }}
-            className="flex items-center space-x-2 bg-krumly-cream hover:bg-[#FBE8D8] border border-krumly-border text-krumly-chocolate px-3 py-1.5 rounded-full text-xs font-semibold transition-all shadow-xs cursor-pointer"
+            className="flex items-center space-x-1.5 sm:space-x-2 bg-krumly-cream hover:bg-[#FBE8D8] border border-krumly-border text-krumly-chocolate px-2.5 sm:px-3 py-1.5 rounded-full text-xs font-semibold transition-all shadow-xs cursor-pointer"
             title="Haz clic para actualizar la Tasa del Día en Bolívares"
           >
-            <div className="w-5 h-5 rounded-full bg-krumly-red text-white flex items-center justify-center font-bold text-[10px]">
+            <div className="w-5 h-5 rounded-full bg-krumly-red text-white flex items-center justify-center font-bold text-[10px] shrink-0">
               Bs
             </div>
-            <span>Tasa del Día: <strong className="text-krumly-red font-bold">{tasaCambioBs.toFixed(2)} Bs</strong></span>
+            <span className="hidden sm:inline">
+              Tasa del Día: <strong className="text-krumly-red font-bold">{tasaCambioBs.toFixed(2)} Bs</strong>
+            </span>
+            <span className="inline sm:hidden text-krumly-red font-bold">
+              {tasaCambioBs.toFixed(2)} Bs
+            </span>
           </button>
 
           {/* Notificaciones */}
@@ -69,10 +75,10 @@ export const Navbar: React.FC<NavbarProps> = ({ toggleSidebar, tituloSeccion = '
 
           {/* Badge Perfil Usuario */}
           <div className="flex items-center space-x-2 pl-2 border-l border-krumly-border">
-            <div className="w-8 h-8 rounded-full bg-krumly-red text-white flex items-center justify-center font-bold text-xs shadow-xs uppercase">
+            <div className="w-8 h-8 rounded-full bg-krumly-red text-white flex items-center justify-center font-bold text-xs shadow-xs uppercase shrink-0">
               {usuario?.username ? usuario.username.slice(0, 2) : 'AD'}
             </div>
-            <div className="hidden md:block text-left">
+            <div className="hidden lg:block text-left">
               <p className="text-xs font-bold text-krumly-chocolate leading-none">{usuario?.username || 'Administrador'}</p>
               <p className="text-[10px] text-gray-500 font-medium leading-tight uppercase">{usuario?.rol || 'Control y Gestión'}</p>
             </div>
@@ -88,8 +94,8 @@ export const Navbar: React.FC<NavbarProps> = ({ toggleSidebar, tituloSeccion = '
       </header>
 
       {/* Modal para cambiar Tasa BCV / Dólar en Bs */}
-      {modalAbierto && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+      {modalAbierto && createPortal(
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center z-[9999] p-4">
           <div className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-krumly-border animate-in fade-in zoom-in-95 duration-150">
             <div className="flex justify-between items-center mb-4">
               <div className="flex items-center space-x-2">
@@ -146,7 +152,8 @@ export const Navbar: React.FC<NavbarProps> = ({ toggleSidebar, tituloSeccion = '
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );

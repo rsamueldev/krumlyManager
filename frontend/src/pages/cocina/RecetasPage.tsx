@@ -1,5 +1,7 @@
+import { createPortal } from 'react-dom';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTasaCambio } from '../../context/TasaCambioContext';
+import { useData } from '../../context/DataContext';
 import {
   fetchInsumosApi,
   fetchRecetasApi,
@@ -22,9 +24,14 @@ import {
 
 export const RecetasPage: React.FC = () => {
   const { tasaCambioBs } = useTasaCambio();
+  const {
+    recetas,
+    insumos,
+    obtenerRecetas,
+    obtenerInsumos,
+    refrescarRecetas,
+  } = useData();
 
-  const [recetas, setRecetas] = useState<Receta[]>([]);
-  const [insumos, setInsumos] = useState<InsumoItem[]>([]);
   const [busqueda, setBusqueda] = useState('');
   const [recetaSeleccionadaId, setRecetaSeleccionadaId] = useState<string | null>(null);
 
@@ -35,22 +42,20 @@ export const RecetasPage: React.FC = () => {
   const [notificacion, setNotificacion] = useState<string | null>(null);
   const [errorGuardado, setErrorGuardado] = useState<string | null>(null);
 
-  // Cargar datos reales desde la API al montar
+  // Cargar datos SWR al montar sin bloqueos
   useEffect(() => {
-    async function loadData() {
-      const [recetasData, insumosData] = await Promise.all([
-        fetchRecetasApi(),
-        fetchInsumosApi(),
-      ]);
-      setRecetas(recetasData);
-      setInsumos(insumosData);
-
-      if (recetasData.length > 0) {
-        cargarRecetaEnFormulario(recetasData[0]);
-      }
-    }
+    const loadData = async () => {
+      await Promise.all([obtenerRecetas(), obtenerInsumos()]);
+    };
     loadData();
-  }, []);
+  }, [obtenerRecetas, obtenerInsumos]);
+
+  // Si se cargan las recetas y no hay ninguna seleccionada, seleccionar la primera
+  useEffect(() => {
+    if (recetas.length > 0 && !recetaSeleccionadaId) {
+      cargarRecetaEnFormulario(recetas[0]);
+    }
+  }, [recetas]);
 
   const cargarRecetaEnFormulario = (receta: Receta) => {
     setRecetaSeleccionadaId(receta.id);
@@ -78,7 +83,7 @@ export const RecetasPage: React.FC = () => {
         insumoId: insumos.length > 0 ? insumos[0].id : '',
         cantidad: 100,
         costoCalculado: insumos.length > 0 ? Number((100 * insumos[0].costoUnitario).toFixed(2)) : 0,
-        insumo: insumos.length > 0 ? insumos[0] : undefined,
+        insumo: insumos.length > 0 ? (insumos[0] as any) : undefined,
       },
     ]);
   };
@@ -117,7 +122,7 @@ export const RecetasPage: React.FC = () => {
         insumoId: defaultInsumo ? defaultInsumo.id : '',
         cantidad: 100,
         costoCalculado: defaultInsumo ? Number((100 * defaultInsumo.costoUnitario).toFixed(2)) : 0,
-        insumo: defaultInsumo,
+        insumo: defaultInsumo as any,
       },
     ]);
   };
@@ -131,7 +136,7 @@ export const RecetasPage: React.FC = () => {
     nuevosIngredientes[index] = {
       ...item,
       insumoId,
-      insumo: targetInsumo,
+      insumo: targetInsumo as any,
       costoCalculado: Number((item.cantidad * costoUnit).toFixed(2)),
     };
     setIngredientes(nuevosIngredientes);
@@ -187,13 +192,8 @@ export const RecetasPage: React.FC = () => {
       };
 
       const guardada = await saveRecetaApi(payload);
-
-      if (recetaSeleccionadaId) {
-        setRecetas(recetas.map((r) => (r.id === recetaSeleccionadaId ? guardada : r)));
-      } else {
-        setRecetas([guardada, ...recetas]);
-        setRecetaSeleccionadaId(guardada.id);
-      }
+      await refrescarRecetas();
+      setRecetaSeleccionadaId(guardada.id);
 
       setNotificacion('¡Receta guardada exitosamente en la base de datos!');
       setTimeout(() => setNotificacion(null), 3500);

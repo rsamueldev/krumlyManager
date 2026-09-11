@@ -1,5 +1,7 @@
+import { createPortal } from 'react-dom';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useTasaCambio } from '../../context/TasaCambioContext';
+import { useData } from '../../context/DataContext';
 import { Categoria, fetchCategoriasApi } from '../../services/categoriasService';
 import { fetchInsumosApi, fetchRecetasApi, InsumoItem, Receta } from '../../services/recetasService';
 import {
@@ -34,11 +36,7 @@ export const ProductosPage: React.FC = () => {
 
   const modalContainerRef = useRef<HTMLDivElement>(null);
 
-  const [productos, setProductos] = useState<Producto[]>([]);
-  const [categorias, setCategorias] = useState<Categoria[]>([]);
-  const [recetas, setRecetas] = useState<Receta[]>([]);
-  const [insumos, setInsumos] = useState<InsumoItem[]>([]);
-  const [cargando, setCargando] = useState(true);
+  const { productos, categorias, recetas, insumos, cargandoProductos: cargando, obtenerProductos, obtenerCategorias, obtenerRecetas, obtenerInsumos, refrescarProductos } = useData();
 
   const [busqueda, setBusqueda] = useState('');
   const [filtroCategoria, setFiltroCategoria] = useState<string>('todas');
@@ -68,38 +66,12 @@ export const ProductosPage: React.FC = () => {
   const [errorModal, setErrorModal] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
 
-  const cargarDatos = async () => {
-    setCargando(true);
-    try {
-      const [prodsData, catsData, recsData, insData] = await Promise.all([
-        fetchProductosApi(),
-        fetchCategoriasApi(),
-        fetchRecetasApi(),
-        fetchInsumosApi(),
-      ]);
-
-      // Deduplicar estrictamente por ID único de producto
-      const mapUnicos = new Map<string, Producto>();
-      (prodsData || []).forEach((p) => {
-        if (p && p.id) {
-          mapUnicos.set(p.id, p);
-        }
-      });
-      setProductos(Array.from(mapUnicos.values()));
-
-      setCategorias((catsData || []).filter((c) => c.tipo === 'producto'));
-      setRecetas(recsData || []);
-      setInsumos(insData || []);
-    } catch (err) {
-      console.error('Error al cargar datos:', err);
-    } finally {
-      setCargando(false);
-    }
-  };
-
   useEffect(() => {
-    cargarDatos();
-  }, []);
+    obtenerProductos();
+    obtenerCategorias();
+    obtenerRecetas();
+    obtenerInsumos();
+  }, [obtenerProductos, obtenerCategorias, obtenerRecetas, obtenerInsumos]);
 
   const abrirModalNuevo = () => {
     setEditandoProductoId(null);
@@ -303,7 +275,7 @@ export const ProductosPage: React.FC = () => {
       }
 
       setModalAbierto(false);
-      await cargarDatos();
+      await refrescarProductos();
       setTimeout(() => setNotificacion(null), 3500);
     } catch (err: any) {
       setErrorModal(err.message || 'Error inesperado al guardar el producto');
@@ -318,7 +290,7 @@ export const ProductosPage: React.FC = () => {
     try {
       await deleteProductoApi(id);
       setNotificacion('Producto eliminado correctamente');
-      await cargarDatos();
+      await refrescarProductos();
       setTimeout(() => setNotificacion(null), 3000);
     } catch (err: any) {
       alert(err.message || 'No se pudo eliminar el producto');
@@ -546,11 +518,11 @@ export const ProductosPage: React.FC = () => {
       )}
 
       {/* MODAL WIZARD DE FICHA TÉCNICA (SIN ATRIBUTO FORM O ENTER AUTO-SUBMIT) */}
-      {modalAbierto && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+      {modalAbierto && createPortal(
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center z-[9999] p-3 sm:p-4 overflow-y-auto">
           <div
             ref={modalContainerRef}
-            className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl border border-krumly-border animate-in fade-in zoom-in-95 duration-150 space-y-5 max-h-[92vh] overflow-y-auto"
+            className="bg-white rounded-2xl max-w-2xl w-full p-4 sm:p-6 shadow-2xl border border-krumly-border animate-in fade-in zoom-in-95 duration-150 space-y-4 sm:space-y-5 max-h-[92vh] overflow-y-auto my-auto"
           >
             
             {/* Header del Modal */}
@@ -1039,7 +1011,8 @@ export const ProductosPage: React.FC = () => {
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

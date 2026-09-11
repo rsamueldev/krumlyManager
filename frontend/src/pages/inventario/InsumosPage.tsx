@@ -1,5 +1,7 @@
+import { createPortal } from 'react-dom';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTasaCambio } from '../../context/TasaCambioContext';
+import { useData } from '../../context/DataContext';
 import {
   createInsumoApi,
   deleteInsumoApi,
@@ -22,8 +24,7 @@ import {
 export const InsumosPage: React.FC = () => {
   const { tasaCambioBs, convertirUSDToVES } = useTasaCambio();
 
-  const [insumos, setInsumos] = useState<Insumo[]>([]);
-  const [cargando, setCargando] = useState(true);
+  const { insumos, cargandoInsumos: cargando, obtenerInsumos, refrescarInsumos } = useData();
   const [busqueda, setBusqueda] = useState('');
   const [filtroUnidad, setFiltroUnidad] = useState<string>('todos');
 
@@ -42,16 +43,9 @@ export const InsumosPage: React.FC = () => {
   const [notificacion, setNotificacion] = useState<string | null>(null);
   const [errorModal, setErrorModal] = useState<string | null>(null);
 
-  const cargarInsumos = async () => {
-    setCargando(true);
-    const data = await fetchInsumosApi();
-    setInsumos(data);
-    setCargando(false);
-  };
-
   useEffect(() => {
-    cargarInsumos();
-  }, []);
+    obtenerInsumos();
+  }, [obtenerInsumos]);
 
   const abrirModalNuevo = () => {
     setEditandoInsumoId(null);
@@ -300,9 +294,9 @@ export const InsumosPage: React.FC = () => {
       </div>
 
       {/* Modal para Crear / Editar Insumo */}
-      {modalAbierto && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-krumly-border animate-in fade-in zoom-in-95 duration-150 space-y-4">
+      {modalAbierto && createPortal(
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center z-[9999] p-3 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-md w-full p-4 sm:p-6 shadow-2xl border border-krumly-border animate-in fade-in zoom-in-95 duration-150 space-y-4 max-h-[92vh] overflow-y-auto my-auto">
             <div className="flex justify-between items-center border-b border-krumly-border pb-3">
               <div className="flex items-center space-x-2">
                 <div className="p-2 bg-krumly-cream rounded-lg text-krumly-red">
@@ -429,7 +423,8 @@ export const InsumosPage: React.FC = () => {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

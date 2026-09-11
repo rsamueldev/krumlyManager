@@ -1,3 +1,5 @@
+import { API_URL, getAuthHeaders, handleUnauthorized } from './api';
+
 export interface Categoria {
   id: string;
   nombre: string;
@@ -5,14 +7,15 @@ export interface Categoria {
   createdAt?: string;
 }
 
-import { API_URL, getAuthHeaders } from './api';
-
 export async function fetchCategoriasApi(): Promise<Categoria[]> {
   try {
-    const token = localStorage.getItem('krumly_token');
     const res = await fetch(`${API_URL}/categorias`, {
       headers: getAuthHeaders(),
     });
+    if (res.status === 401) {
+      handleUnauthorized(res);
+      return [];
+    }
     if (res.ok) {
       const data = await res.json();
       if (Array.isArray(data)) return data;
@@ -24,12 +27,13 @@ export async function fetchCategoriasApi(): Promise<Categoria[]> {
 }
 
 export async function createCategoriaApi(categoria: Omit<Categoria, 'id' | 'createdAt'>): Promise<Categoria> {
-  const token = localStorage.getItem('krumly_token');
   const res = await fetch(`${API_URL}/categorias`, {
     method: 'POST',
     headers: getAuthHeaders(),
     body: JSON.stringify(categoria),
   });
+
+  if (res.status === 401) handleUnauthorized(res);
 
   if (!res.ok) {
     const errData = await res.json().catch(() => ({}));
@@ -40,10 +44,12 @@ export async function createCategoriaApi(categoria: Omit<Categoria, 'id' | 'crea
 }
 
 export async function deleteCategoriaApi(id: string): Promise<boolean> {
-  const token = localStorage.getItem('krumly_token');
   const res = await fetch(`${API_URL}/categorias/${id}`, {
     method: 'DELETE',
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    headers: getAuthHeaders(),
   });
+
+  if (res.status === 401) handleUnauthorized(res);
+
   return res.ok;
 }

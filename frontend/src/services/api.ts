@@ -7,3 +7,13 @@ export function getAuthHeaders(): Record<string, string> {
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };
 }
+
+export function handleUnauthorized(res: Response) {
+  if (res.status === 401) {
+    localStorage.removeItem('krumly_token');
+    localStorage.removeItem('krumly_user');
+    if (window.location.pathname !== '/login') {
+      window.location.href = '/login';
+    }
+  }
+}

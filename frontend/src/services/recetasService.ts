@@ -1,3 +1,5 @@
+import { API_URL, getAuthHeaders, handleUnauthorized } from './api';
+
 export interface InsumoItem {
   id: string;
   nombre: string;
@@ -24,14 +26,15 @@ export interface Receta {
   updatedAt?: string;
 }
 
-import { API_URL, getAuthHeaders } from './api';
-
 export async function fetchInsumosApi(): Promise<InsumoItem[]> {
   try {
-    const token = localStorage.getItem('krumly_token');
     const res = await fetch(`${API_URL}/insumos`, {
       headers: getAuthHeaders(),
     });
+    if (res.status === 401) {
+      handleUnauthorized(res);
+      return [];
+    }
     if (res.ok) {
       const data = await res.json();
       if (Array.isArray(data)) return data;
@@ -44,10 +47,13 @@ export async function fetchInsumosApi(): Promise<InsumoItem[]> {
 
 export async function fetchRecetasApi(): Promise<Receta[]> {
   try {
-    const token = localStorage.getItem('krumly_token');
     const res = await fetch(`${API_URL}/recetas`, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      headers: getAuthHeaders(),
     });
+    if (res.status === 401) {
+      handleUnauthorized(res);
+      return [];
+    }
     if (res.ok) {
       const data = await res.json();
       if (Array.isArray(data)) return data;
@@ -59,7 +65,6 @@ export async function fetchRecetasApi(): Promise<Receta[]> {
 }
 
 export async function saveRecetaApi(receta: Partial<Receta>): Promise<Receta> {
-  const token = localStorage.getItem('krumly_token');
   const isEdit = Boolean(receta.id);
   const url = isEdit ? `${API_URL}/recetas/${receta.id}` : `${API_URL}/recetas`;
   const method = isEdit ? 'PUT' : 'POST';
@@ -76,6 +81,8 @@ export async function saveRecetaApi(receta: Partial<Receta>): Promise<Receta> {
       })),
     }),
   });
+
+  if (res.status === 401) handleUnauthorized(res);
 
   if (!res.ok) {
     const errorData = await res.json().catch(() => ({}));

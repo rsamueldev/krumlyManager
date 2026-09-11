@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { MainLayout } from './components/layout/MainLayout';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { DataProvider } from './context/DataContext';
 import { TasaCambioProvider } from './context/TasaCambioContext';
 import { LoginPage } from './pages/auth/LoginPage';
 import { DashboardPage } from './pages/DashboardPage';
@@ -28,31 +29,33 @@ const PlaceholderPage: React.FC<{ titulo: string }> = ({ titulo }) => (
 export function App() {
   return (
     <AuthProvider>
-      <TasaCambioProvider>
-        <BrowserRouter>
-          <Routes>
-            <Route path="/login" element={<LoginPage />} />
-            <Route
-              path="/"
-              element={
-                <ProtectedRoute>
-                  <MainLayout />
-                </ProtectedRoute>
-              }
-            >
-              <Route index element={<DashboardPage />} />
-              <Route path="cocina/recetas" element={<RecetasPage />} />
-              <Route path="productos" element={<ProductosPage />} />
-              <Route path="inventario/insumos" element={<InsumosPage />} />
-              <Route path="inventario/categorias" element={<CategoriasPage />} />
-              <Route path="pos" element={<PlaceholderPage titulo="Punto de Venta POS - Cobro en Mostrador (TSK-301)" />} />
-              <Route path="gastos" element={<PlaceholderPage titulo="Registro de Gastos Operativos (TSK-403)" />} />
-              <Route path="configuracion" element={<PlaceholderPage titulo="Configuración del Sistema" />} />
-            </Route>
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </BrowserRouter>
-      </TasaCambioProvider>
+      <DataProvider>
+        <TasaCambioProvider>
+          <BrowserRouter>
+            <Routes>
+              <Route path="/login" element={<LoginPage />} />
+              <Route
+                path="/"
+                element={
+                  <ProtectedRoute>
+                    <MainLayout />
+                  </ProtectedRoute>
+                }
+              >
+                <Route index element={<DashboardPage />} />
+                <Route path="cocina/recetas" element={<RecetasPage />} />
+                <Route path="productos" element={<ProductosPage />} />
+                <Route path="inventario/insumos" element={<InsumosPage />} />
+                <Route path="inventario/categorias" element={<CategoriasPage />} />
+                <Route path="pos" element={<PlaceholderPage titulo="Punto de Venta POS - Cobro en Mostrador (TSK-301)" />} />
+                <Route path="gastos" element={<PlaceholderPage titulo="Registro de Gastos Operativos (TSK-403)" />} />
+                <Route path="configuracion" element={<PlaceholderPage titulo="Configuración del Sistema" />} />
+              </Route>
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </BrowserRouter>
+        </TasaCambioProvider>
+      </DataProvider>
     </AuthProvider>
   );
 }

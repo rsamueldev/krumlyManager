@@ -1,35 +1,31 @@
 import React, { useEffect, useState } from 'react';
+import { useData } from '../../context/DataContext';
 import {
-  Categoria,
   createCategoriaApi,
   deleteCategoriaApi,
-  fetchCategoriasApi,
 } from '../../services/categoriasService';
 import { FolderTree, Plus, Trash2 } from 'lucide-react';
 
 export const CategoriasPage: React.FC = () => {
-  const [categorias, setCategorias] = useState<Categoria[]>([]);
-  const [cargando, setCargando] = useState(true);
+  const {
+    categorias,
+    cargandoCategorias: cargando,
+    obtenerCategorias,
+    refrescarCategorias,
+  } = useData();
   const [nombre, setNombre] = useState('');
   const [tipo, setTipo] = useState<'producto' | 'gasto'>('producto');
 
-  const cargar = async () => {
-    setCargando(true);
-    const data = await fetchCategoriasApi();
-    setCategorias(data);
-    setCargando(false);
-  };
-
   useEffect(() => {
-    cargar();
-  }, []);
+    obtenerCategorias();
+  }, [obtenerCategorias]);
 
   const handleCrear = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!nombre.trim()) return;
     try {
-      const nueva = await createCategoriaApi({ nombre: nombre.trim(), tipo });
-      setCategorias([...categorias, nueva]);
+      await createCategoriaApi({ nombre: nombre.trim(), tipo });
+      await refrescarCategorias();
       setNombre('');
     } catch (err: any) {
       alert(err.message || 'Error al crear la categoría');
@@ -38,8 +34,12 @@ export const CategoriasPage: React.FC = () => {
 
   const handleEliminar = async (id: string) => {
     if (!confirm('¿Eliminar esta categoría?')) return;
-    await deleteCategoriaApi(id);
-    setCategorias(categorias.filter((c) => c.id !== id));
+    try {
+      await deleteCategoriaApi(id);
+      await refrescarCategorias();
+    } catch (err: any) {
+      alert(err.message || 'Error al eliminar la categoría');
+    }
   };
 
   return (
