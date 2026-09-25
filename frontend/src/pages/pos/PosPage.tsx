@@ -476,6 +476,7 @@ export const PosPage: React.FC = () => {
         <ModalPagoMixto
           cart={cart}
           clienteNombre={clienteNombre}
+          metodoPagoInicial={metodoPago}
           onClose={() => setModalPagoAbierto(false)}
           onVentaCompletada={handleVentaCompletada}
         />

@@ -27,6 +27,7 @@ export interface VentaResponse {
   codigoVenta: string;
   fechaVenta: string;
   totalVenta: number;
+  estadoSincronizacion?: string;
   cliente?: { id: string; nombre: string } | null;
   usuario?: { id: string; username: string };
   detalles: any[];
@@ -69,4 +70,24 @@ export async function fetchVentasApi(): Promise<VentaResponse[]> {
     console.error('Error al consultar ventas de la API:', err);
   }
   return [];
+}
+
+export async function syncVentasOfflineApi(ventasOfflinePayloads: VentaPayload[]): Promise<VentaResponse[]> {
+  let res: Response;
+  try {
+    res = await fetch(`${API_URL}/ventas/batch-sync`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ ventas: ventasOfflinePayloads }),
+    });
+  } catch (err: any) {
+    throw new Error('No hay conexión con el servidor para sincronizar las ventas offline.');
+  }
+
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.message || 'Error al sincronizar las ventas offline con el servidor');
+  }
+
+  return await res.json();
 }

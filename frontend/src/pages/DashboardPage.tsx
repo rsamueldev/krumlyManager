@@ -1,15 +1,40 @@
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useTasaCambio } from '../context/TasaCambioContext';
 import { useData } from '../context/DataContext';
-import { Cookie, ShoppingCart, Receipt } from 'lucide-react';
+import { ejecutarSincronizacionOffline } from '../services/offlineSyncService';
+import { Cookie, ShoppingCart, Receipt, RefreshCw, AlertCircle, CheckCircle2 } from 'lucide-react';
 
 export const DashboardPage: React.FC = () => {
   const { tasaCambioBs, convertirUSDToVES } = useTasaCambio();
-  const { ventas, cargandoVentas, obtenerVentas } = useData();
+  const { ventas, cargandoVentas, obtenerVentas, refrescarTodo } = useData();
+  const [sincronizando, setSincronizando] = useState(false);
+  const [notificacion, setNotificacion] = useState<string | null>(null);
 
   useEffect(() => {
     obtenerVentas();
   }, [obtenerVentas]);
+
+  const pendientesOfflineCount = useMemo(() => {
+    return ventas.filter((v) => v.estadoSincronizacion === 'offline_pending').length;
+  }, [ventas]);
+
+  const handleSincronizarManual = async () => {
+    setSincronizando(true);
+    try {
+      const count = await ejecutarSincronizacionOffline(true);
+      await refrescarTodo();
+      if (count > 0) {
+        setNotificacion(`¡Se sincronizaron exitosamente ${count} venta(s) offline con la base de datos!`);
+      } else {
+        setNotificacion('No hay ventas offline pendientes por sincronizar.');
+      }
+    } catch (err: any) {
+      setNotificacion(err.message || 'Error durante la sincronización de ventas offline');
+    } finally {
+      setSincronizando(false);
+      setTimeout(() => setNotificacion(null), 6000);
+    }
+  };
 
   // Total acumulado de ventas registradas en BD
   const ventasUSD = useMemo(() => {
@@ -54,6 +79,36 @@ export const DashboardPage: React.FC = () => {
         </div>
       </div>
 
+      {/* Alerta / Notificación de Sincronización */}
+      {notificacion && (
+        <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 px-4 py-3 rounded-2xl flex items-center space-x-2 animate-in fade-in duration-200 shadow-sm">
+          <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+          <span className="font-semibold text-xs">{notificacion}</span>
+        </div>
+      )}
+
+      {/* Banner de Ventas Offline Pendientes */}
+      {pendientesOfflineCount > 0 && (
+        <div className="bg-amber-50 border border-amber-300 text-amber-900 px-5 py-3.5 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 shadow-xs">
+          <div className="flex items-center space-x-2.5">
+            <AlertCircle className="w-5 h-5 text-amber-600 shrink-0" />
+            <span className="text-xs font-bold">
+              Tienes <strong>{pendientesOfflineCount}</strong> venta(s) guardadas localmente pendientes por enviar al servidor.
+            </span>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleSincronizarManual}
+            disabled={sincronizando}
+            className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center space-x-1.5 shrink-0 cursor-pointer disabled:opacity-50"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${sincronizando ? 'animate-spin' : ''}`} />
+            <span>{sincronizando ? 'Sincronizando...' : 'Sincronizar Ahora'}</span>
+          </button>
+        </div>
+      )}
+
       {/* Historial de Ventas Recientes en Base de Datos */}
       <div className="bg-white p-6 rounded-2xl border border-krumly-border shadow-xs space-y-4">
         <div className="flex items-center justify-between border-b border-krumly-border pb-3">
@@ -61,9 +116,23 @@ export const DashboardPage: React.FC = () => {
             <Receipt className="w-5 h-5 text-krumly-red" />
             <h3 className="font-heading font-bold text-base text-krumly-chocolate">Historial de Ventas en Tiempo Real</h3>
           </div>
-          <span className="text-xs text-gray-500 font-medium">
-            {ventas.length} {ventas.length === 1 ? 'venta registrada' : 'ventas registradas'}
-          </span>
+
+          <div className="flex items-center space-x-3">
+            {pendientesOfflineCount > 0 && (
+              <button
+                type="button"
+                onClick={handleSincronizarManual}
+                disabled={sincronizando}
+                className="px-3 py-1 bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 rounded-xl text-[11px] font-bold transition-all flex items-center space-x-1 cursor-pointer disabled:opacity-50"
+              >
+                <RefreshCw className={`w-3 h-3 ${sincronizando ? 'animate-spin' : ''}`} />
+                <span>Sincronizar ({pendientesOfflineCount})</span>
+              </button>
+            )}
+            <span className="text-xs text-gray-500 font-medium">
+              {ventas.length} {ventas.length === 1 ? 'venta registrada' : 'ventas registradas'}
+            </span>
+          </div>
         </div>
 
         <div className="overflow-x-auto">
@@ -80,6 +149,7 @@ export const DashboardPage: React.FC = () => {
               <thead>
                 <tr className="bg-[#FFF9F5] border-b border-krumly-border text-[10px] font-bold uppercase tracking-wider text-gray-500">
                   <th className="py-3 px-4">Código / Ticket</th>
+                  <th className="py-3 px-4">Estado</th>
                   <th className="py-3 px-4">Fecha y Hora</th>
                   <th className="py-3 px-4">Cliente</th>
                   <th className="py-3 px-4">Métodos de Pago</th>
@@ -101,6 +171,22 @@ export const DashboardPage: React.FC = () => {
                   return (
                     <tr key={v.id} className="hover:bg-amber-50/20 transition-colors font-medium text-krumly-chocolate">
                       <td className="py-3 px-4 font-bold text-krumly-red">{v.codigoVenta}</td>
+                      <td className="py-3 px-4">
+                        {v.estadoSincronizacion === 'offline_pending' ? (
+                          <span className="px-2 py-0.5 rounded-full text-[9.5px] font-bold bg-amber-100 text-amber-800 border border-amber-300 inline-flex items-center space-x-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                            <span>Offline (Pendiente)</span>
+                          </span>
+                        ) : v.estadoSincronizacion === 'offline_synced' ? (
+                          <span className="px-2 py-0.5 rounded-full text-[9.5px] font-bold bg-blue-100 text-blue-800 border border-blue-200 inline-flex items-center space-x-1">
+                            <span>Offline (Sincronizada)</span>
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded-full text-[9.5px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 inline-flex items-center space-x-1">
+                            <span>Online</span>
+                          </span>
+                        )}
+                      </td>
                       <td className="py-3 px-4 text-gray-500">{fechaStr}</td>
                       <td className="py-3 px-4 font-bold">{v.cliente?.nombre || 'Público General'}</td>
                       <td className="py-3 px-4">

@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import { CrearVentaUseCase } from '../../application/use-cases/crear-venta.use-case';
 import { ObtenerVentasUseCase } from '../../application/use-cases/obtener-ventas.use-case';
+import { SincronizarVentasOfflineUseCase, VentaOfflineDto } from '../../application/use-cases/sincronizar-ventas-offline.use-case';
 import { RolUsuario } from '../../domain/entities/usuario.entity';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Roles } from '../auth/roles.decorator';
@@ -38,6 +39,7 @@ export class VentasController {
   constructor(
     private readonly crearVentaUseCase: CrearVentaUseCase,
     private readonly obtenerVentasUseCase: ObtenerVentasUseCase,
+    private readonly sincronizarVentasOfflineUseCase: SincronizarVentasOfflineUseCase,
   ) {}
 
   @Post()
@@ -49,6 +51,14 @@ export class VentasController {
       ...dto,
       usuarioId,
     });
+  }
+
+  @Post('batch-sync')
+  @UseGuards(RolesGuard)
+  @Roles(RolUsuario.ADMIN, RolUsuario.CAJERO)
+  async batchSync(@Req() req: any, @Body() body: { ventas: VentaOfflineDto[] }) {
+    const usuarioId = req.user?.userId || req.user?.id || req.user?.sub;
+    return this.sincronizarVentasOfflineUseCase.execute(usuarioId, body.ventas || []);
   }
 
   @Get()

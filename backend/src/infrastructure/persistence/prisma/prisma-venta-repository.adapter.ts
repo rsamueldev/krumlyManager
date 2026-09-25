@@ -85,6 +85,165 @@ export class PrismaVentaRepositoryAdapter implements VentaRepositoryPort {
     });
   }
 
+  async sincronizarLoteOffline(
+    ventasOffline: Array<{ ventaData: Partial<Venta>; detalles: any[]; pagos: any[] }>,
+  ): Promise<Venta[]> {
+    if (!ventasOffline || ventasOffline.length === 0) return [];
+
+    const isUuid = (val?: string | null): boolean => {
+      if (!val || typeof val !== 'string') return false;
+      return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val.trim());
+    };
+
+    const normalizarMetodo = (m?: string): any => {
+      if (!m) return 'efectivo_usd';
+      if (m === 'punto') return 'punto_venta';
+      const valid = ['efectivo_usd', 'efectivo_ves', 'pago_movil', 'punto_venta', 'transferencia'];
+      return valid.includes(m) ? m : 'efectivo_usd';
+    };
+
+    const resultados: Venta[] = [];
+
+    for (const itemOffline of ventasOffline) {
+      try {
+        const ventaRes = await this.prisma.$transaction(async (tx) => {
+          const randomSuffix = Math.floor(100000 + Math.random() * 900000).toString();
+          const rawCodigo = itemOffline.ventaData.codigoVenta?.trim();
+          const codigoVenta = (rawCodigo && rawCodigo.length > 0)
+            ? rawCodigo.slice(0, 20)
+            : `VNT-OFF-${randomSuffix}`;
+
+          // Si ya fue sincronizada previamente, recuperarla con todas sus relaciones
+          const existe = await tx.venta.findUnique({
+            where: { codigoVenta },
+            include: {
+              detalles: {
+                include: {
+                  producto: { select: { id: true, nombre: true, precioVenta: true } },
+                },
+              },
+              pagos: true,
+              cliente: { select: { id: true, nombre: true } },
+              usuario: { select: { id: true, username: true } },
+            },
+          });
+
+          if (existe) {
+            return this.mapToDomain(existe);
+          }
+
+          // Validar y decrementar stock de productos
+          const detallesValidos: Array<{
+            productoId: string;
+            cantidad: number;
+            precioUnitario: number;
+            subtotal: number;
+          }> = [];
+
+          for (const item of itemOffline.detalles || []) {
+            if (!isUuid(item.productoId)) continue;
+            const prod = await tx.producto.findUnique({
+              where: { id: item.productoId },
+            });
+            if (prod) {
+              const cant = Math.max(1, Number(item.cantidad) || 1);
+              const precio = Number(item.precioUnitario) || Number(prod.precioVenta) || 0;
+              const nuevoStock = Math.max(0, prod.stockActual - cant);
+              await tx.producto.update({
+                where: { id: prod.id },
+                data: { stockActual: nuevoStock },
+              });
+              detallesValidos.push({
+                productoId: prod.id,
+                cantidad: cant,
+                precioUnitario: precio,
+                subtotal: cant * precio,
+              });
+            }
+          }
+
+          if (detallesValidos.length === 0) {
+            console.warn(`[OfflineSync] Venta ${codigoVenta} descartada: no tiene productos válidos.`);
+            return null;
+          }
+
+          // Validar pagos
+          const pagosValidos = (itemOffline.pagos || []).map((p) => ({
+            metodoPago: normalizarMetodo(p.metodoPago),
+            montoUsd: Number(p.montoUsd) || 0,
+            montoVes: p.montoVes ? Number(p.montoVes) : null,
+            tasaCambio: p.tasaCambio ? Number(p.tasaCambio) : null,
+            referenciaPago: p.referenciaPago?.trim() || null,
+          }));
+
+          if (pagosValidos.length === 0) {
+            const sumDetalles = detallesValidos.reduce((s, d) => s + d.subtotal, 0);
+            pagosValidos.push({
+              metodoPago: 'efectivo_usd',
+              montoUsd: sumDetalles,
+              montoVes: null,
+              tasaCambio: null,
+              referenciaPago: null,
+            });
+          }
+
+          // Validar fecha
+          let fechaVenta = new Date();
+          if (itemOffline.ventaData.fechaVenta) {
+            const parsed = new Date(itemOffline.ventaData.fechaVenta);
+            if (!isNaN(parsed.getTime())) {
+              fechaVenta = parsed;
+            }
+          }
+
+          const clienteId = isUuid(itemOffline.ventaData.clienteId)
+            ? itemOffline.ventaData.clienteId
+            : null;
+
+          const totalCalculado = detallesValidos.reduce((s, d) => s + d.subtotal, 0);
+          const totalVenta = Number(itemOffline.ventaData.totalVenta) || totalCalculado;
+
+          const ventaCreada = await tx.venta.create({
+            data: {
+              codigoVenta,
+              fechaVenta,
+              clienteId,
+              totalVenta,
+              estadoSincronizacion: 'offline_synced',
+              usuarioId: itemOffline.ventaData.usuarioId!,
+              detalles: {
+                create: detallesValidos,
+              },
+              pagos: {
+                create: pagosValidos,
+              },
+            },
+            include: {
+              detalles: {
+                include: {
+                  producto: { select: { id: true, nombre: true, precioVenta: true } },
+                },
+              },
+              pagos: true,
+              cliente: { select: { id: true, nombre: true } },
+              usuario: { select: { id: true, username: true } },
+            },
+          });
+
+          return this.mapToDomain(ventaCreada);
+        });
+
+        if (ventaRes) {
+          resultados.push(ventaRes);
+        }
+      } catch (err) {
+        console.error(`[OfflineSync Error] Fallo al sincronizar venta individual:`, err);
+      }
+    }
+
+    return resultados;
+  }
+
   async obtenerTodas(): Promise<Venta[]> {
     const list = await this.prisma.venta.findMany({
       orderBy: { fechaVenta: 'desc' },

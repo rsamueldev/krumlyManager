@@ -22,7 +22,7 @@ Cada tarea incluye una casilla de verificación (- [ ]). Cuando termines un tick
 | :--- | :--- | :---: | :---: |
 | **Sprint 1** | Fundaciones, DB Prisma 3NF, Auth RBAC, Insumos & Categorías | Semanas 1 y 2 | ✅ Completado |
 | **Sprint 2** | Cocina (Recetas Base en g) & Costeo de Productos Finales (Fullstack) | Semanas 3 y 4 | ✅ Completado |
-| **Sprint 3** | Punto de Venta POS, Pago Mixto (USD/VES) & Sync Offline (Fullstack) | Semanas 5 y 6 | 🚀 En Inicio |
+| **Sprint 3** | Punto de Venta POS, Pago Mixto (USD/VES) & Sync Offline (Fullstack) | Semanas 5 y 6 | ✅ Completado |
 | **Sprint 4** | Lotes de Producción, Mermas, Gastos Operativos & Dashboard (Fullstack) | Semanas 7 y 8 | ⏳ Pendiente |
 | **Sprint 5** | Pruebas Integrales QA, Optimización & Despliegue Producción | Semanas 9 y 10| ⏳ Pendiente |
 
@@ -104,7 +104,7 @@ ombre, 	ipo: 'producto' | 'gasto').
   - **Frontend:** Selector de cliente y Modal de Pago Mixto en USD y VES con conversión según tasa del día.
   - *Criterio de Aceptación:* Botón "Confirmar Venta" se habilita solo cuando el cobro está 100% cubierto.
 
-- [ ] **TSK-303 [POS]: Modo Offline (IndexedDB) y Sincronización Automática (Fullstack)**
+- [x] **TSK-303 [POS]: Modo Offline (IndexedDB) y Sincronización Automática (Fullstack)**
   - **Backend:** Endpoint de recepción de lotes de ventas offline.
   - **Frontend PWA:** Al no haber conexión, guardar venta en IndexedDB (estado_sincronizacion = 'offline_pending'). Al reconectar, sincronizar solo.
   - *Criterio de Aceptación:* Registrar ventas sin internet y comprobar que se sincronicen solas al volver la red.

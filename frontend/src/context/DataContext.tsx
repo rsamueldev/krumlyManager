@@ -4,6 +4,8 @@ import { fetchInsumosApi, Insumo } from '../services/insumosService';
 import { fetchProductosApi, Producto } from '../services/productosService';
 import { fetchRecetasApi, Receta } from '../services/recetasService';
 import { fetchVentasApi, VentaResponse } from '../services/ventasService';
+import { ejecutarSincronizacionOffline } from '../services/offlineSyncService';
+import { obtenerVentasOffline } from '../services/offlineStorage';
 import { useAuth } from './AuthContext';
 
 interface DataContextType {
@@ -98,6 +100,36 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setLastProductosFetch(0);
       setLastVentasFetch(0);
     }
+  }, [token]);
+
+  // Sincronizador automático continuo de ventas offline al reconectarse a internet
+  useEffect(() => {
+    const intentarSincronizacion = async () => {
+      if (!token || !navigator.onLine) return;
+      const sincronizadasCount = await ejecutarSincronizacionOffline();
+      if (sincronizadasCount > 0) {
+        await Promise.all([refrescarVentas(), refrescarProductos()]);
+      }
+    };
+
+    intentarSincronizacion();
+
+    // Reintento periódico cada 10 segundos para garantizar sincronización si la red estuvo inestable
+    const interval = setInterval(() => {
+      intentarSincronizacion();
+    }, 10000);
+
+    const handleOnlineOrFocus = () => {
+      intentarSincronizacion();
+    };
+
+    window.addEventListener('online', handleOnlineOrFocus);
+    window.addEventListener('focus', handleOnlineOrFocus);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('online', handleOnlineOrFocus);
+      window.removeEventListener('focus', handleOnlineOrFocus);
+    };
   }, [token]);
 
   // 1. INSUMOS
@@ -237,9 +269,37 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!token) return;
     setCargandoVentas(ventasRef.current.length === 0);
     try {
+      if (navigator.onLine) {
+        await ejecutarSincronizacionOffline().catch(() => 0);
+      }
+
       const data = await fetchVentasApi();
-      const arrayData = Array.isArray(data) ? data : [];
-      setVentas(arrayData);
+      const onlineList = Array.isArray(data) ? data : [];
+
+      let offlineList: VentaResponse[] = [];
+      try {
+        const offlineRecords = await obtenerVentasOffline();
+        const onlineCodigos = new Set(onlineList.map((v) => v.codigoVenta));
+
+        offlineList = offlineRecords
+          .filter((rec) => !onlineCodigos.has(rec.codigoTemp))
+          .map((rec) => ({
+            id: rec.id,
+            codigoVenta: rec.codigoTemp,
+            fechaVenta: new Date(rec.timestamp).toISOString(),
+            totalVenta: rec.payload.totalVenta,
+            estadoSincronizacion: 'offline_pending',
+            cliente: rec.payload.clienteId ? { id: rec.payload.clienteId, nombre: 'Cliente' } : { id: 'pg', nombre: 'Público General' },
+            detalles: rec.payload.detalles || [],
+            pagos: rec.payload.pagos || [],
+          }));
+      } catch (err) {
+        console.warn('Error al leer ventas pendientes de IndexedDB:', err);
+      }
+
+      const listaCombinada = [...offlineList, ...onlineList];
+      setVentas(listaCombinada);
+      ventasRef.current = listaCombinada;
       const now = Date.now();
       setLastVentasFetch(now);
       lastVentasFetchRef.current = now;
