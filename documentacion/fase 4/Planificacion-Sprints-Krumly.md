@@ -1,4 +1,4 @@
-﻿# Planificación de Sprints y Guía de Ejecución (Solo Developer)
+# Planificación de Sprints y Guía de Ejecución (Solo Developer)
 ## Krumly Manager - Sistema de Gestión y Control Operativo para Repostería
 
 Este documento es la **guía maestra de planificación y ejecución** diseñada específicamente para el desarrollo en solitario (*Solo Developer*) de **Krumly Manager**.
@@ -21,8 +21,8 @@ Cada tarea incluye una casilla de verificación (- [ ]). Cuando termines un tick
 | Sprint | Enfoque Principal (Vertical Slice) | Semanas | Estado |
 | :--- | :--- | :---: | :---: |
 | **Sprint 1** | Fundaciones, DB Prisma 3NF, Auth RBAC, Insumos & Categorías | Semanas 1 y 2 | ✅ Completado |
-| **Sprint 2** | Cocina (Recetas Base en g) & Costeo de Productos Finales (Fullstack) | Semanas 3 y 4 | 🚀 En Inicio |
-| **Sprint 3** | Punto de Venta POS, Pago Mixto (USD/VES) & Sync Offline (Fullstack) | Semanas 5 y 6 | ⏳ Pendiente |
+| **Sprint 2** | Cocina (Recetas Base en g) & Costeo de Productos Finales (Fullstack) | Semanas 3 y 4 | ✅ Completado |
+| **Sprint 3** | Punto de Venta POS, Pago Mixto (USD/VES) & Sync Offline (Fullstack) | Semanas 5 y 6 | 🚀 En Inicio |
 | **Sprint 4** | Lotes de Producción, Mermas, Gastos Operativos & Dashboard (Fullstack) | Semanas 7 y 8 | ⏳ Pendiente |
 | **Sprint 5** | Pruebas Integrales QA, Optimización & Despliegue Producción | Semanas 9 y 10| ⏳ Pendiente |
 
@@ -94,12 +94,12 @@ ombre, 	ipo: 'producto' | 'gasto').
 
 ### 📋 Checklist de Tareas del Sprint 3:
 
-- [ ] **TSK-301 [POS]: Catálogo Visual y Carrito de Compras (Fullstack)**
+- [x] **TSK-301 [POS]: Catálogo Visual y Carrito de Compras (Fullstack)**
   - **Backend:** API REST optimizada para catálogo POS (/api/v1/productos/pos).
   - **Frontend:** Grid de galletas con imágenes, precios en USD y badges de stock (Stock Normal, Stock Bajo, Agotado). Carrito responsive.
   - *Criterio de Aceptación:* Agregar galletas al carrito en menos de 3 segundos.
 
-- [ ] **TSK-302 [POS]: Modal de Pago Mixto y Selección de Cliente (Fullstack)**
+- [x] **TSK-302 [POS]: Modal de Pago Mixto y Selección de Cliente (Fullstack)**
   - **Backend:** Endpoint POST /api/v1/ventas registrando venta, detalles y desglose de pagos mixtos en DB.
   - **Frontend:** Selector de cliente y Modal de Pago Mixto en USD y VES con conversión según tasa del día.
   - *Criterio de Aceptación:* Botón "Confirmar Venta" se habilita solo cuando el cobro está 100% cubierto.
