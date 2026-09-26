@@ -12,6 +12,7 @@ import {
   Package,
   Settings,
   ShoppingCart,
+  Trash2,
   Users,
   X,
 } from 'lucide-react';
@@ -32,6 +33,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ colapsado, mobileOpen, onClose
     { to: '/productos', label: 'Productos', icon: Cookie },
     { to: '/inventario/insumos', label: 'Materia Prima', icon: Package },
     { to: '/inventario/categorias', label: 'Categorías', icon: FolderTree },
+    { to: '/inventario/mermas', label: 'Mermas y Descartes', icon: Trash2 },
     { to: '/pos', label: 'Punto de Venta (POS)', icon: ShoppingCart },
     { to: '/clientes', label: 'Clientes', icon: Users },
     { to: '/gastos', label: 'Gastos Operativos', icon: CreditCard },

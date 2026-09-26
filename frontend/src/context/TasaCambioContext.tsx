@@ -1,9 +1,11 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useState } from 'react';
 
 interface TasaCambioContextType {
   tasaCambioBs: number;
   setTasaCambioBs: (tasa: number) => void;
   convertirUSDToVES: (montoUSD: number) => number;
+  formatearUSD: (montoUSD: number) => string;
+  formatearBS: (montoUSD: number) => string;
 }
 
 const TasaCambioContext = createContext<TasaCambioContextType | undefined>(undefined);
@@ -11,7 +13,7 @@ const TasaCambioContext = createContext<TasaCambioContextType | undefined>(undef
 export const TasaCambioProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [tasaCambioBs, setTasaState] = useState<number>(() => {
     const saved = localStorage.getItem('krumly_tasa_bs');
-    return saved ? parseFloat(saved) : 40.50;
+    return saved ? parseFloat(saved) : 40.5;
   });
 
   const setTasaCambioBs = (tasa: number) => {
@@ -20,11 +22,29 @@ export const TasaCambioProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   };
 
   const convertirUSDToVES = (montoUSD: number) => {
-    return Number((montoUSD * tasaCambioBs).toFixed(2));
+    return Number(((montoUSD || 0) * tasaCambioBs).toFixed(2));
+  };
+
+  const formatearUSD = (montoUSD: number) => {
+    const val = Number(montoUSD) || 0;
+    return `$${val.toFixed(2)}`;
+  };
+
+  const formatearBS = (montoUSD: number) => {
+    const ves = convertirUSDToVES(montoUSD || 0);
+    return `Bs. ${ves.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
   return (
-    <TasaCambioContext.Provider value={{ tasaCambioBs, setTasaCambioBs, convertirUSDToVES }}>
+    <TasaCambioContext.Provider
+      value={{
+        tasaCambioBs,
+        setTasaCambioBs,
+        convertirUSDToVES,
+        formatearUSD,
+        formatearBS,
+      }}
+    >
       {children}
     </TasaCambioContext.Provider>
   );

@@ -9,6 +9,8 @@ import { RecetasModule } from './infrastructure/modules/recetas.module';
 import { VentasModule } from './infrastructure/modules/ventas.module';
 import { ClientesModule } from './infrastructure/modules/clientes.module';
 import { ProduccionModule } from './infrastructure/modules/produccion.module';
+import { MermasModule } from './infrastructure/modules/mermas.module';
+import { GastosModule } from './infrastructure/modules/gastos.module';
 import { PrismaModule } from './infrastructure/persistence/prisma/prisma.module';
 
 @Module({
@@ -22,6 +24,8 @@ import { PrismaModule } from './infrastructure/persistence/prisma/prisma.module'
     VentasModule,
     ClientesModule,
     ProduccionModule,
+    MermasModule,
+    GastosModule,
   ],
   controllers: [AppController],
   providers: [AppService],

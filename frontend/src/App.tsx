@@ -11,8 +11,10 @@ import { ProduccionPage } from './pages/cocina/ProduccionPage';
 import { ProductosPage } from './pages/productos/ProductosPage';
 import { CategoriasPage } from './pages/inventario/CategoriasPage';
 import { InsumosPage } from './pages/inventario/InsumosPage';
+import { MermasPage } from './pages/inventario/MermasPage';
 import { PosPage } from './pages/pos/PosPage';
 import { ClientesPage } from './pages/ClientesPage';
+import { GastosPage } from './pages/GastosPage';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { token } = useAuth();
@@ -51,9 +53,10 @@ export function App() {
                 <Route path="productos" element={<ProductosPage />} />
                 <Route path="inventario/insumos" element={<InsumosPage />} />
                 <Route path="inventario/categorias" element={<CategoriasPage />} />
+                <Route path="inventario/mermas" element={<MermasPage />} />
                 <Route path="pos" element={<PosPage />} />
                 <Route path="clientes" element={<ClientesPage />} />
-                <Route path="gastos" element={<PlaceholderPage titulo="Registro de Gastos Operativos (TSK-403)" />} />
+                <Route path="gastos" element={<GastosPage />} />
                 <Route path="configuracion" element={<PlaceholderPage titulo="Configuración del Sistema" />} />
               </Route>
               <Route path="*" element={<Navigate to="/" replace />} />
