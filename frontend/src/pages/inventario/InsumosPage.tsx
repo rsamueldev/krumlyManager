@@ -97,7 +97,7 @@ export const InsumosPage: React.FC = () => {
 
     try {
       if (editandoInsumoId) {
-        const actualizado = await updateInsumoApi(editandoInsumoId, {
+        await updateInsumoApi(editandoInsumoId, {
           nombre: nombre.trim(),
           unidadMedida,
           cantidadEmpaque,
@@ -106,10 +106,10 @@ export const InsumosPage: React.FC = () => {
           stockActual,
           stockMinimo,
         });
-        setInsumos(insumos.map((i) => (i.id === editandoInsumoId ? actualizado : i)));
+        await refrescarInsumos();
         setNotificacion('¡Insumo actualizado exitosamente!');
       } else {
-        const nuevo = await createInsumoApi({
+        await createInsumoApi({
           nombre: nombre.trim(),
           unidadMedida,
           cantidadEmpaque,
@@ -117,7 +117,7 @@ export const InsumosPage: React.FC = () => {
           stockActual,
           stockMinimo,
         });
-        setInsumos([nuevo, ...insumos]);
+        await refrescarInsumos();
         setNotificacion('¡Insumo registrado en la base de datos exitosamente!');
       }
       setModalAbierto(false);
@@ -131,7 +131,7 @@ export const InsumosPage: React.FC = () => {
     if (!confirm('¿Estás seguro de eliminar este insumo del inventario?')) return;
     try {
       await deleteInsumoApi(id);
-      setInsumos(insumos.filter((i) => i.id !== id));
+      await refrescarInsumos();
       setNotificacion('Insumo eliminado correctamente');
       setTimeout(() => setNotificacion(null), 3000);
     } catch (err: any) {
