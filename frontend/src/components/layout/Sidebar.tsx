@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import {
   ChefHat,
   Cookie,
+  CookingPot,
   CreditCard,
   FolderTree,
   LayoutDashboard,
@@ -27,6 +28,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ colapsado, mobileOpen, onClose
   const menuItems = [
     { to: '/', label: 'Dashboard', icon: LayoutDashboard },
     { to: '/cocina/recetas', label: 'Recetas', icon: ChefHat },
+    { to: '/cocina/produccion', label: 'Lotes de Producción', icon: CookingPot },
     { to: '/productos', label: 'Productos', icon: Cookie },
     { to: '/inventario/insumos', label: 'Materia Prima', icon: Package },
     { to: '/inventario/categorias', label: 'Categorías', icon: FolderTree },

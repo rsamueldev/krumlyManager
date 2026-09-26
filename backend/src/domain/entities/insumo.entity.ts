@@ -16,7 +16,7 @@ export class InsumoEntity {
     public readonly stockMinimo: number = 500,
     public readonly createdAt?: Date,
     public readonly updatedAt?: Date,
-  ) {}
+  ) { }
 
   public static calcularCostoUnitario(precioCompra: number, cantidadEmpaque: number): number {
     if (cantidadEmpaque <= 0) return 0;

@@ -7,6 +7,7 @@ import { TasaCambioProvider } from './context/TasaCambioContext';
 import { LoginPage } from './pages/auth/LoginPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { RecetasPage } from './pages/cocina/RecetasPage';
+import { ProduccionPage } from './pages/cocina/ProduccionPage';
 import { ProductosPage } from './pages/productos/ProductosPage';
 import { CategoriasPage } from './pages/inventario/CategoriasPage';
 import { InsumosPage } from './pages/inventario/InsumosPage';
@@ -46,6 +47,7 @@ export function App() {
               >
                 <Route index element={<DashboardPage />} />
                 <Route path="cocina/recetas" element={<RecetasPage />} />
+                <Route path="cocina/produccion" element={<ProduccionPage />} />
                 <Route path="productos" element={<ProductosPage />} />
                 <Route path="inventario/insumos" element={<InsumosPage />} />
                 <Route path="inventario/categorias" element={<CategoriasPage />} />
