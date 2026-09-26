@@ -3,8 +3,8 @@ services:
     name: krumly-backend
     env: node
     region: oregon
-    buildCommand: npm install --legacy-peer-deps && npx prisma generate && npm run build
-    startCommand: npx prisma db push && npm run start:prod
+    buildCommand: cd backend && npm install --legacy-peer-deps && npx prisma generate && npm run build
+    startCommand: cd backend && npx prisma db push && npm run start:prod
     envVars:
       - key: NODE_ENV
         value: production
