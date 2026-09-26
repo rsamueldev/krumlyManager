@@ -20,6 +20,8 @@ import {
   FileEdit,
   CheckCircle2,
   AlertCircle,
+  ChefHat,
+  RefreshCw,
 } from 'lucide-react';
 
 export const RecetasPage: React.FC = () => {
@@ -204,6 +206,40 @@ export const RecetasPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      {/* Header Banner */}
+      <div className="bg-white rounded-2xl p-6 border border-krumly-border shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center space-x-2 text-krumly-red mb-1">
+            <ChefHat className="w-5 h-5" />
+            <span className="text-xs font-bold tracking-wider uppercase">Cocina & Formulaciones</span>
+          </div>
+          <h1 className="font-heading text-2xl font-bold text-krumly-chocolate tracking-tight">
+            Recetas de Cocina
+          </h1>
+          <p className="text-xs text-gray-500 mt-1 max-w-2xl">
+            Constructor e ingeniería de fórmulas base para masas de galletas. Calcula el costo por gramo de mezcla en tiempo real.
+          </p>
+        </div>
+
+        <div className="flex items-center space-x-3 shrink-0">
+          <button
+            onClick={() => refrescarRecetas()}
+            className="px-3.5 py-2 bg-gray-50 hover:bg-gray-100 text-krumly-chocolate rounded-xl text-xs font-semibold border border-krumly-border transition-all flex items-center space-x-2 cursor-pointer"
+          >
+            <RefreshCw className="w-4 h-4 text-gray-500" />
+            <span>Actualizar</span>
+          </button>
+
+          <button
+            onClick={handleNuevaReceta}
+            className="px-4 py-2 bg-krumly-red hover:bg-krumly-red-dark text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center space-x-2 cursor-pointer"
+          >
+            <Plus className="w-4 h-4 stroke-[2.5]" />
+            <span>Nueva Receta</span>
+          </button>
+        </div>
+      </div>
+
       {/* Alertas */}
       {notificacion && (
         <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 px-4 py-3 rounded-xl flex items-center space-x-2 animate-in fade-in duration-200 shadow-xs">

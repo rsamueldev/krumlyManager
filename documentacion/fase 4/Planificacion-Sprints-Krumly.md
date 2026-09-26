@@ -23,8 +23,8 @@ Cada tarea incluye una casilla de verificación (- [ ]). Cuando termines un tick
 | **Sprint 1** | Fundaciones, DB Prisma 3NF, Auth RBAC, Insumos & Categorías | Semanas 1 y 2 | ✅ Completado |
 | **Sprint 2** | Cocina (Recetas Base en g) & Costeo de Productos Finales (Fullstack) | Semanas 3 y 4 | ✅ Completado |
 | **Sprint 3** | Punto de Venta POS, Pago Mixto (USD/VES) & Sync Offline (Fullstack) | Semanas 5 y 6 | ✅ Completado |
-| **Sprint 4** | Lotes de Producción, Mermas, Gastos Operativos & Dashboard (Fullstack) | Semanas 7 y 8 | ⏳ Pendiente |
-| **Sprint 5** | Pruebas Integrales QA, Optimización & Despliegue Producción | Semanas 9 y 10| ⏳ Pendiente |
+| **Sprint 4** | Lotes de Producción, Mermas, Gastos Operativos & Dashboard (Fullstack) | Semanas 7 y 8 | ✅ Completado |
+| **Sprint 5** | Pruebas Integrales QA, Optimización & Despliegue Producción | Semanas 9 y 10| ✅ Completado |
 
 ---
 
@@ -142,11 +142,11 @@ ombre, 	ipo: 'producto' | 'gasto').
 
 ### 📋 Checklist de Tareas del Sprint 5:
 
-- [ ] **TSK-501 [QA]: Pruebas de Flujo Completo E2E**
+- [x] **TSK-501 [QA]: Pruebas de Flujo Completo E2E**
   - Probar ciclo completo en UI: Registro Insumo $\rightarrow$ Receta Base $\rightarrow$ Producto $\rightarrow$ Lote Producción $\rightarrow$ Venta POS Pago Mixto $\rightarrow$ Dashboard.
   - *Criterio de Aceptación:* Cero errores de TypeScript y cero inconsistencias de stock/dinero.
 
-- [ ] **TSK-502 [Deploy]: Despliegue en Producción**
+- [x] **TSK-502 [Deploy]: Despliegue en Producción**
   - Backend NestJS desplegado en Render / Railway.
   - Base de Datos de Producción en Supabase.
   - Frontend React PWA desplegado en Vercel.

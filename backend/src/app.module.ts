@@ -11,6 +11,7 @@ import { ClientesModule } from './infrastructure/modules/clientes.module';
 import { ProduccionModule } from './infrastructure/modules/produccion.module';
 import { MermasModule } from './infrastructure/modules/mermas.module';
 import { GastosModule } from './infrastructure/modules/gastos.module';
+import { DashboardModule } from './infrastructure/modules/dashboard.module';
 import { PrismaModule } from './infrastructure/persistence/prisma/prisma.module';
 
 @Module({
@@ -26,6 +27,7 @@ import { PrismaModule } from './infrastructure/persistence/prisma/prisma.module'
     ProduccionModule,
     MermasModule,
     GastosModule,
+    DashboardModule,
   ],
   controllers: [AppController],
   providers: [AppService],

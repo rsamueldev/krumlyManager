@@ -1,0 +1,16 @@
+{
+  "short_name": "Krumly Manager",
+  "name": "Krumly Manager - Sistema de Gestión y Control Operativo para Repostería",
+  "icons": [
+    {
+      "src": "/vite.svg",
+      "type": "image/svg+xml",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#FFF3E8",
+  "theme_color": "#AA1616",
+  "display": "standalone",
+  "orientation": "portrait"
+}

@@ -23,6 +23,7 @@ import {
   Cookie,
   Edit2,
   Plus,
+  RefreshCw,
   Save,
   Search,
   Sparkles,
@@ -314,25 +315,39 @@ export const ProductosPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header & Acción Principal */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      {/* Header Banner */}
+      <div className="bg-white rounded-2xl p-6 border border-krumly-border shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
-          <h2 className="font-heading text-xl font-bold text-krumly-chocolate">
-            Catálogo de Productos Comerciales
-          </h2>
-          <p className="text-xs text-gray-500 font-medium mt-0.5">
-            Definición paso a paso de galletas, asignación de masa, toppings y margen neto
+          <div className="flex items-center space-x-2 text-krumly-red mb-1">
+            <Cookie className="w-5 h-5" />
+            <span className="text-xs font-bold tracking-wider uppercase">Catálogo Comercial & Costeo</span>
+          </div>
+          <h1 className="font-heading text-2xl font-bold text-krumly-chocolate tracking-tight">
+            Catálogo de Productos
+          </h1>
+          <p className="text-xs text-gray-500 mt-1 max-w-2xl">
+            Definición de galletas comerciales, asignación de masa base, insumos adicionales/toppings y análisis de margen de ganancia neto.
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={abrirModalNuevo}
-          className="bg-krumly-red hover:bg-krumly-red-dark text-white font-bold py-2.5 px-4 rounded-2xl shadow-md shadow-krumly-red/20 transition-all flex items-center justify-center space-x-2 text-xs cursor-pointer shrink-0"
-        >
-          <Plus className="w-4 h-4 stroke-[3]" />
-          <span>Nuevo Producto</span>
-        </button>
+        <div className="flex items-center space-x-3 shrink-0">
+          <button
+            onClick={() => refrescarProductos()}
+            disabled={cargando}
+            className="px-3.5 py-2 bg-gray-50 hover:bg-gray-100 text-krumly-chocolate rounded-xl text-xs font-semibold border border-krumly-border transition-all flex items-center space-x-2 cursor-pointer"
+          >
+            <RefreshCw className={`w-4 h-4 text-gray-500 ${cargando ? 'animate-spin' : ''}`} />
+            <span>Actualizar</span>
+          </button>
+
+          <button
+            onClick={abrirModalNuevo}
+            className="px-4 py-2 bg-krumly-red hover:bg-krumly-red-dark text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center space-x-2 cursor-pointer"
+          >
+            <Plus className="w-4 h-4 stroke-[2.5]" />
+            <span>Nuevo Producto</span>
+          </button>
+        </div>
       </div>
 
       {/* Alerta de Notificación */}
