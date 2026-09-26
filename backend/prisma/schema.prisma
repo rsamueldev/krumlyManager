@@ -66,11 +66,14 @@ model Usuario {
 }
 
 model Cliente {
-  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  nombre    String   @db.VarChar(100)
-  telefono  String?  @db.VarChar(30)
-  ubicacion String?  @db.VarChar(255)
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  cedulaRif String?   @unique @map("cedula_rif") @db.VarChar(20)
+  nombre    String    @db.VarChar(100)
+  telefono  String?   @db.VarChar(30)
+  ubicacion String?   @db.VarChar(255)
+  activo    Boolean   @default(true)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt DateTime? @updatedAt @map("updated_at") @db.Timestamp(6)
 
   ventas Venta[]
 

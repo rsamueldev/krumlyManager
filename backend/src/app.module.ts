@@ -7,6 +7,7 @@ import { InsumosModule } from './infrastructure/modules/insumos.module';
 import { ProductosModule } from './infrastructure/modules/productos.module';
 import { RecetasModule } from './infrastructure/modules/recetas.module';
 import { VentasModule } from './infrastructure/modules/ventas.module';
+import { ClientesModule } from './infrastructure/modules/clientes.module';
 import { PrismaModule } from './infrastructure/persistence/prisma/prisma.module';
 
 @Module({
@@ -18,6 +19,7 @@ import { PrismaModule } from './infrastructure/persistence/prisma/prisma.module'
     ProductosModule,
     CategoriasModule,
     VentasModule,
+    ClientesModule,
   ],
   controllers: [AppController],
   providers: [AppService],

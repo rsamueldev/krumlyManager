@@ -4,6 +4,7 @@ import { fetchInsumosApi, Insumo } from '../services/insumosService';
 import { fetchProductosApi, Producto } from '../services/productosService';
 import { fetchRecetasApi, Receta } from '../services/recetasService';
 import { fetchVentasApi, VentaResponse } from '../services/ventasService';
+import { Cliente, fetchClientesApi } from '../services/clientesService';
 import { ejecutarSincronizacionOffline } from '../services/offlineSyncService';
 import { obtenerVentasOffline } from '../services/offlineStorage';
 import { useAuth } from './AuthContext';
@@ -14,24 +15,28 @@ interface DataContextType {
   recetas: Receta[];
   productos: Producto[];
   ventas: VentaResponse[];
+  clientes: Cliente[];
 
   cargandoInsumos: boolean;
   cargandoCategorias: boolean;
   cargandoRecetas: boolean;
   cargandoProductos: boolean;
   cargandoVentas: boolean;
+  cargandoClientes: boolean;
 
   obtenerInsumos: (force?: boolean) => Promise<Insumo[]>;
   obtenerCategorias: (force?: boolean) => Promise<Categoria[]>;
   obtenerRecetas: (force?: boolean) => Promise<Receta[]>;
   obtenerProductos: (force?: boolean) => Promise<Producto[]>;
   obtenerVentas: (force?: boolean) => Promise<VentaResponse[]>;
+  obtenerClientes: (force?: boolean) => Promise<Cliente[]>;
 
   refrescarInsumos: () => Promise<void>;
   refrescarCategorias: () => Promise<void>;
   refrescarRecetas: () => Promise<void>;
   refrescarProductos: () => Promise<void>;
   refrescarVentas: () => Promise<void>;
+  refrescarClientes: () => Promise<void>;
   refrescarTodo: () => Promise<void>;
 }
 
@@ -47,18 +52,21 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [recetas, setRecetas] = useState<Receta[]>([]);
   const [productos, setProductos] = useState<Producto[]>([]);
   const [ventas, setVentas] = useState<VentaResponse[]>([]);
+  const [clientes, setClientes] = useState<Cliente[]>([]);
 
   const [cargandoInsumos, setCargandoInsumos] = useState(false);
   const [cargandoCategorias, setCargandoCategorias] = useState(false);
   const [cargandoRecetas, setCargandoRecetas] = useState(false);
   const [cargandoProductos, setCargandoProductos] = useState(false);
   const [cargandoVentas, setCargandoVentas] = useState(false);
+  const [cargandoClientes, setCargandoClientes] = useState(false);
 
   const [lastInsumosFetch, setLastInsumosFetch] = useState<number>(0);
   const [lastCategoriasFetch, setLastCategoriasFetch] = useState<number>(0);
   const [lastRecetasFetch, setLastRecetasFetch] = useState<number>(0);
   const [lastProductosFetch, setLastProductosFetch] = useState<number>(0);
   const [lastVentasFetch, setLastVentasFetch] = useState<number>(0);
+  const [lastClientesFetch, setLastClientesFetch] = useState<number>(0);
 
   // Refs para mantener estabilidad de callbacks y evitar bucles infinitos de re-renderizado
   const insumosRef = useRef(insumos);
@@ -86,6 +94,11 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const lastVentasFetchRef = useRef(lastVentasFetch);
   lastVentasFetchRef.current = lastVentasFetch;
 
+  const clientesRef = useRef(clientes);
+  clientesRef.current = clientes;
+  const lastClientesFetchRef = useRef(lastClientesFetch);
+  lastClientesFetchRef.current = lastClientesFetch;
+
   // Limpiar caché al cerrar sesión
   useEffect(() => {
     if (!token) {
@@ -94,11 +107,13 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setRecetas([]);
       setProductos([]);
       setVentas([]);
+      setClientes([]);
       setLastInsumosFetch(0);
       setLastCategoriasFetch(0);
       setLastRecetasFetch(0);
       setLastProductosFetch(0);
       setLastVentasFetch(0);
+      setLastClientesFetch(0);
     }
   }, [token]);
 
@@ -324,6 +339,38 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     [refrescarVentas]
   );
 
+  // 6. CLIENTES
+  const refrescarClientes = useCallback(async () => {
+    if (!token) return;
+    setCargandoClientes(clientesRef.current.length === 0);
+    try {
+      const data = await fetchClientesApi();
+      const arrayData = Array.isArray(data) ? data : [];
+      setClientes(arrayData);
+      const now = Date.now();
+      setLastClientesFetch(now);
+      lastClientesFetchRef.current = now;
+    } finally {
+      setCargandoClientes(false);
+    }
+  }, [token]);
+
+  const obtenerClientes = useCallback(
+    async (force: boolean = false): Promise<Cliente[]> => {
+      const now = Date.now();
+      const lastFetch = lastClientesFetchRef.current;
+      const isStale = now - lastFetch > STALE_TIME_MS;
+
+      if (lastFetch === 0 || force) {
+        await refrescarClientes();
+      } else if (isStale) {
+        refrescarClientes();
+      }
+      return clientesRef.current;
+    },
+    [refrescarClientes]
+  );
+
   const refrescarTodo = useCallback(async () => {
     await Promise.all([
       refrescarInsumos(),
@@ -331,8 +378,9 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       refrescarRecetas(),
       refrescarProductos(),
       refrescarVentas(),
+      refrescarClientes(),
     ]);
-  }, [refrescarInsumos, refrescarCategorias, refrescarRecetas, refrescarProductos, refrescarVentas]);
+  }, [refrescarInsumos, refrescarCategorias, refrescarRecetas, refrescarProductos, refrescarVentas, refrescarClientes]);
 
   return (
     <DataContext.Provider
@@ -342,21 +390,25 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         recetas,
         productos,
         ventas,
+        clientes,
         cargandoInsumos,
         cargandoCategorias,
         cargandoRecetas,
         cargandoProductos,
         cargandoVentas,
+        cargandoClientes,
         obtenerInsumos,
         obtenerCategorias,
         obtenerRecetas,
         obtenerProductos,
         obtenerVentas,
+        obtenerClientes,
         refrescarInsumos,
         refrescarCategorias,
         refrescarRecetas,
         refrescarProductos,
         refrescarVentas,
+        refrescarClientes,
         refrescarTodo,
       }}
     >

@@ -11,6 +11,7 @@ import { ProductosPage } from './pages/productos/ProductosPage';
 import { CategoriasPage } from './pages/inventario/CategoriasPage';
 import { InsumosPage } from './pages/inventario/InsumosPage';
 import { PosPage } from './pages/pos/PosPage';
+import { ClientesPage } from './pages/ClientesPage';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { token } = useAuth();
@@ -49,7 +50,7 @@ export function App() {
                 <Route path="inventario/insumos" element={<InsumosPage />} />
                 <Route path="inventario/categorias" element={<CategoriasPage />} />
                 <Route path="pos" element={<PosPage />} />
-                <Route path="clientes" element={<PlaceholderPage titulo="Módulo de Gestión de Clientes (Próximo Sprint)" />} />
+                <Route path="clientes" element={<ClientesPage />} />
                 <Route path="gastos" element={<PlaceholderPage titulo="Registro de Gastos Operativos (TSK-403)" />} />
                 <Route path="configuracion" element={<PlaceholderPage titulo="Configuración del Sistema" />} />
               </Route>

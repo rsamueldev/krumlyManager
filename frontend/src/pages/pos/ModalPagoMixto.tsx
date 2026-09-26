@@ -22,6 +22,7 @@ import {
 interface ModalPagoMixtoProps {
   cart: CartItem[];
   clienteNombre: string;
+  clienteId?: string;
   metodoPagoInicial?: MetodoPagoTipo;
   onClose: () => void;
   onVentaCompletada: (codigoVenta: string, total: number) => void;
@@ -39,6 +40,7 @@ interface FilaPago {
 export const ModalPagoMixto: React.FC<ModalPagoMixtoProps> = ({
   cart,
   clienteNombre,
+  clienteId,
   metodoPagoInicial = 'efectivo_usd',
   onClose,
   onVentaCompletada,
@@ -190,7 +192,7 @@ export const ModalPagoMixto: React.FC<ModalPagoMixtoProps> = ({
       }));
 
       const payload = {
-        clienteId: undefined, // Público general
+        clienteId: clienteId || undefined,
         totalVenta: Number(totalUSD.toFixed(2)),
         detalles: detallesPayload,
         pagos: pagosPayload,

@@ -32,7 +32,7 @@ export interface CartItem {
 export type MetodoPagoTipo = 'efectivo_usd' | 'pago_movil' | 'punto' | 'mixto';
 
 export const PosPage: React.FC = () => {
-  const { productos, categorias, obtenerProductos, obtenerCategorias, cargandoProductos } = useData();
+  const { productos, categorias, clientes, obtenerProductos, obtenerCategorias, obtenerClientes, cargandoProductos } = useData();
   const { tasaCambioBs } = useTasaCambio();
 
   // State Cart & Filters
@@ -43,6 +43,7 @@ export const PosPage: React.FC = () => {
   // Checkout Details State
   const [esPublicoGeneral, setEsPublicoGeneral] = useState(true);
   const [clienteNombre, setClienteNombre] = useState('Público General');
+  const [clienteIdSeleccionado, setClienteIdSeleccionado] = useState<string | undefined>(undefined);
   const [metodoPago, setMetodoPago] = useState<MetodoPagoTipo>('efectivo_usd');
   const [modalPagoAbierto, setModalPagoAbierto] = useState(false);
   const [notificacion, setNotificacion] = useState<string | null>(null);
@@ -50,7 +51,8 @@ export const PosPage: React.FC = () => {
   useEffect(() => {
     obtenerProductos();
     obtenerCategorias();
-  }, [obtenerProductos, obtenerCategorias]);
+    obtenerClientes();
+  }, [obtenerProductos, obtenerCategorias, obtenerClientes]);
 
   // Dynamic Categories filtered for products
   const categoriasProducto = useMemo(() => {
@@ -390,7 +392,10 @@ export const PosPage: React.FC = () => {
                   checked={esPublicoGeneral}
                   onChange={(e) => {
                     setEsPublicoGeneral(e.target.checked);
-                    if (e.target.checked) setClienteNombre('Público General');
+                    if (e.target.checked) {
+                      setClienteNombre('Público General');
+                      setClienteIdSeleccionado(undefined);
+                    }
                   }}
                   className="rounded text-krumly-red focus:ring-krumly-red"
                 />
@@ -400,11 +405,27 @@ export const PosPage: React.FC = () => {
 
             <select
               disabled={esPublicoGeneral}
-              value={clienteNombre}
-              onChange={(e) => setClienteNombre(e.target.value)}
+              value={clienteIdSeleccionado || ''}
+              onChange={(e) => {
+                const selId = e.target.value;
+                setClienteIdSeleccionado(selId);
+                const sel = clientes.find((c) => c.id === selId);
+                if (sel) {
+                  setClienteNombre(sel.nombre);
+                } else {
+                  setClienteNombre('Público General');
+                }
+              }}
               className="w-full px-3.5 py-2 bg-krumly-cream/30 border border-krumly-border rounded-xl text-xs font-bold text-krumly-chocolate focus:ring-2 focus:ring-krumly-red focus:outline-none disabled:opacity-60 cursor-pointer"
             >
-              <option value="Público General">Público General</option>
+              <option value="">-- Seleccionar Cliente Registrado --</option>
+              {clientes
+                .filter((c) => c.activo)
+                .map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.cedulaRif ? `[${c.cedulaRif}] ` : ''}{c.nombre}
+                  </option>
+                ))}
             </select>
           </div>
 
@@ -476,6 +497,7 @@ export const PosPage: React.FC = () => {
         <ModalPagoMixto
           cart={cart}
           clienteNombre={clienteNombre}
+          clienteId={esPublicoGeneral ? undefined : clienteIdSeleccionado}
           metodoPagoInicial={metodoPago}
           onClose={() => setModalPagoAbierto(false)}
           onVentaCompletada={handleVentaCompletada}
