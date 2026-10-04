@@ -1,4 +1,4 @@
-import { API_URL, getAuthHeaders } from './api';
+import { API_URL, getAuthHeaders, handleUnauthorized } from './api';
 
 export interface VentaDetallePayload {
   productoId: string;
