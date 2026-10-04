@@ -37,7 +37,7 @@ export const ProductosPage: React.FC = () => {
 
   const modalContainerRef = useRef<HTMLDivElement>(null);
 
-  const { productos, categorias, recetas, insumos, cargandoProductos: cargando, obtenerProductos, obtenerCategorias, obtenerRecetas, obtenerInsumos, refrescarProductos } = useData();
+  const { productos, categorias, recetas, insumos, cargandoProductos: cargando, obtenerProductos, obtenerCategorias, obtenerRecetas, obtenerInsumos, agregarProductoLocal, actualizarProductoLocal, eliminarProductoLocal } = useData();
 
   const [busqueda, setBusqueda] = useState('');
   const [filtroCategoria, setFiltroCategoria] = useState<string>('todas');
@@ -268,15 +268,16 @@ export const ProductosPage: React.FC = () => {
       };
 
       if (editandoProductoId) {
-        await updateProductoApi(editandoProductoId, payload);
+        const actualizado = await updateProductoApi(editandoProductoId, payload);
+        actualizarProductoLocal(actualizado);
         setNotificacion('¡Ficha técnica del producto actualizada exitosamente!');
       } else {
-        await createProductoApi(payload);
+        const nuevo = await createProductoApi(payload);
+        agregarProductoLocal(nuevo);
         setNotificacion('¡Producto comercial registrado exitosamente!');
       }
 
       setModalAbierto(false);
-      await refrescarProductos();
       setTimeout(() => setNotificacion(null), 3500);
     } catch (err: any) {
       setErrorModal(err.message || 'Error inesperado al guardar el producto');
@@ -290,8 +291,8 @@ export const ProductosPage: React.FC = () => {
     if (!confirm('¿Estás seguro de eliminar este producto del catálogo comercial?')) return;
     try {
       await deleteProductoApi(id);
+      eliminarProductoLocal(id);
       setNotificacion('Producto eliminado correctamente');
-      await refrescarProductos();
       setTimeout(() => setNotificacion(null), 3000);
     } catch (err: any) {
       alert(err.message || 'No se pudo eliminar el producto');

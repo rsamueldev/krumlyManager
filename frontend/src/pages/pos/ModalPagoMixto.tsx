@@ -46,7 +46,7 @@ export const ModalPagoMixto: React.FC<ModalPagoMixtoProps> = ({
   onVentaCompletada,
 }) => {
   const { tasaCambioBs } = useTasaCambio();
-  const { refrescarProductos, refrescarVentas } = useData();
+  const { refrescarProductos, refrescarVentas, actualizarStockProductoLocal } = useData();
 
   // Flag si se está usando el desglose complejo de pago mixto o confirmación rápida
   const [esMixto, setEsMixto] = useState<boolean>(metodoPagoInicial === 'mixto');
@@ -200,24 +200,31 @@ export const ModalPagoMixto: React.FC<ModalPagoMixtoProps> = ({
 
       if (!navigator.onLine) {
         const record = await guardarVentaOffline(payload);
-        await Promise.all([refrescarProductos(), refrescarVentas()]);
         onVentaCompletada(`${record.codigoTemp} (Modo Offline)`, totalUSD);
+        // Refresco en segundo plano (no bloqueante)
+        Promise.all([refrescarProductos(), refrescarVentas()]).catch(() => {});
         return;
       }
 
       try {
         const response = await createVentaApi(payload);
-        await Promise.all([refrescarProductos(), refrescarVentas()]);
+        // Descuento inmediato de stock en la UI
+        cart.forEach((item) => {
+          const nuevoStock = Math.max(0, item.producto.stockActual - item.cantidad);
+          actualizarStockProductoLocal(item.producto.id, nuevoStock);
+        });
+        // Pasar a pantalla de recibo de inmediato
         onVentaCompletada(response.codigoVenta, response.totalVenta);
+        // Refresco completo en segundo plano (no bloqueante)
+        Promise.all([refrescarProductos(), refrescarVentas()]).catch(() => {});
       } catch (err: any) {
         // Fallback a modo offline ÚNICAMENTE si fue error de red/conexión
         if (err?.isNetworkError || err instanceof NetworkError) {
           const record = await guardarVentaOffline(payload);
-          await Promise.all([refrescarProductos(), refrescarVentas()]);
           onVentaCompletada(`${record.codigoTemp} (Modo Offline)`, totalUSD);
+          Promise.all([refrescarProductos(), refrescarVentas()]).catch(() => {});
         } else {
           // Si fue error del servidor (e.g. Stock insuficiente, 401 token expirado, etc.)
-          // Mostrar el error directamente en la interfaz
           setErrorText(err.message || 'Error al procesar la venta en la base de datos.');
         }
       }

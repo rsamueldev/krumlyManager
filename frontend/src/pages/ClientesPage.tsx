@@ -25,7 +25,7 @@ import {
 } from 'lucide-react';
 
 export const ClientesPage: React.FC = () => {
-  const { clientes, obtenerClientes, refrescarClientes, cargandoClientes } = useData();
+  const { clientes, obtenerClientes, cargandoClientes, agregarClienteLocal, actualizarClienteLocal } = useData();
 
   // Filtros y Búsqueda
   const [busqueda, setBusqueda] = useState('');
@@ -93,26 +93,27 @@ export const ClientesPage: React.FC = () => {
 
     try {
       if (clienteEditando) {
-        await updateClienteApi(clienteEditando.id, {
+        const actualizado = await updateClienteApi(clienteEditando.id, {
           nombre: nombre.trim(),
           cedulaRif: cedulaRif.trim() || null,
           telefono: telefono.trim() || null,
           ubicacion: ubicacion.trim() || null,
           activo,
         });
+        actualizarClienteLocal(actualizado);
         mostrarNotificacion(`Cliente "${nombre.trim()}" actualizado con éxito.`);
       } else {
-        await createClienteApi({
+        const nuevo = await createClienteApi({
           nombre: nombre.trim(),
           cedulaRif: cedulaRif.trim() || null,
           telefono: telefono.trim() || null,
           ubicacion: ubicacion.trim() || null,
           activo,
         });
+        agregarClienteLocal(nuevo);
         mostrarNotificacion(`Cliente "${nombre.trim()}" registrado con éxito.`);
       }
 
-      await refrescarClientes();
       setModalAbierto(false);
     } catch (err: any) {
       setErrorText(err.message || 'Error al guardar el cliente');
@@ -125,8 +126,8 @@ export const ClientesPage: React.FC = () => {
   const handleToggleEstado = async (c: Cliente) => {
     try {
       const nuevoEstado = !c.activo;
-      await toggleActivoClienteApi(c.id, nuevoEstado);
-      await refrescarClientes();
+      const actualizado = await toggleActivoClienteApi(c.id, nuevoEstado);
+      actualizarClienteLocal(actualizado);
       mostrarNotificacion(
         `Cliente "${c.nombre}" ${nuevoEstado ? 'activado' : 'desactivado'} correctamente.`
       );

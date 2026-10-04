@@ -117,7 +117,7 @@ export const GastosPage: React.FC = () => {
     setNotificacion(null);
 
     try {
-      await createGastoApi({
+      const nuevo = await createGastoApi({
         tipoGasto,
         concepto: concepto.trim(),
         montoUsd: Number(montoUsd),
@@ -128,14 +128,11 @@ export const GastosPage: React.FC = () => {
         categoriaId: categoriaId || undefined,
       });
 
+      // Agregar al inicio de la lista local sin re-fetch
+      setGastos((prev) => [nuevo, ...prev]);
       setNotificacion('¡Gasto registrado con éxito!');
-
-      await cargarGastos();
-
-      setTimeout(() => {
-        setModalAbierto(false);
-        setNotificacion(null);
-      }, 1200);
+      setModalAbierto(false);
+      setTimeout(() => setNotificacion(null), 3000);
     } catch (err: any) {
       setErrorModal(err.message || 'Error al guardar el gasto.');
     } finally {
@@ -148,7 +145,7 @@ export const GastosPage: React.FC = () => {
 
     try {
       await deleteGastoApi(id);
-      await cargarGastos();
+      setGastos((prev) => prev.filter((g) => g.id !== id));
     } catch (err: any) {
       alert(err.message || 'Error al eliminar el gasto.');
     }

@@ -12,6 +12,8 @@ export const CategoriasPage: React.FC = () => {
     cargandoCategorias: cargando,
     obtenerCategorias,
     refrescarCategorias,
+    agregarCategoriaLocal,
+    eliminarCategoriaLocal,
   } = useData();
   const [nombre, setNombre] = useState('');
   const [tipo, setTipo] = useState<'producto' | 'gasto'>('producto');
@@ -24,8 +26,8 @@ export const CategoriasPage: React.FC = () => {
     e.preventDefault();
     if (!nombre.trim()) return;
     try {
-      await createCategoriaApi({ nombre: nombre.trim(), tipo });
-      await refrescarCategorias();
+      const nueva = await createCategoriaApi({ nombre: nombre.trim(), tipo });
+      agregarCategoriaLocal(nueva);
       setNombre('');
     } catch (err: any) {
       alert(err.message || 'Error al crear la categoría');
@@ -36,7 +38,7 @@ export const CategoriasPage: React.FC = () => {
     if (!confirm('¿Eliminar esta categoría?')) return;
     try {
       await deleteCategoriaApi(id);
-      await refrescarCategorias();
+      eliminarCategoriaLocal(id);
     } catch (err: any) {
       alert(err.message || 'Error al eliminar la categoría');
     }

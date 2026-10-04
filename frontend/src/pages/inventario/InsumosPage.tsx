@@ -25,7 +25,7 @@ import {
 export const InsumosPage: React.FC = () => {
   const { tasaCambioBs, convertirUSDToVES } = useTasaCambio();
 
-  const { insumos, cargandoInsumos: cargando, obtenerInsumos, refrescarInsumos } = useData();
+  const { insumos, cargandoInsumos: cargando, obtenerInsumos, agregarInsumoLocal, actualizarInsumoLocal, eliminarInsumoLocal } = useData();
   const [busqueda, setBusqueda] = useState('');
   const [filtroUnidad, setFiltroUnidad] = useState<string>('todos');
 
@@ -97,7 +97,7 @@ export const InsumosPage: React.FC = () => {
 
     try {
       if (editandoInsumoId) {
-        await updateInsumoApi(editandoInsumoId, {
+        const actualizado = await updateInsumoApi(editandoInsumoId, {
           nombre: nombre.trim(),
           unidadMedida,
           cantidadEmpaque,
@@ -106,10 +106,10 @@ export const InsumosPage: React.FC = () => {
           stockActual,
           stockMinimo,
         });
-        await refrescarInsumos();
+        actualizarInsumoLocal(actualizado);
         setNotificacion('¡Insumo actualizado exitosamente!');
       } else {
-        await createInsumoApi({
+        const nuevo = await createInsumoApi({
           nombre: nombre.trim(),
           unidadMedida,
           cantidadEmpaque,
@@ -117,7 +117,7 @@ export const InsumosPage: React.FC = () => {
           stockActual,
           stockMinimo,
         });
-        await refrescarInsumos();
+        agregarInsumoLocal(nuevo);
         setNotificacion('¡Insumo registrado en la base de datos exitosamente!');
       }
       setModalAbierto(false);
@@ -131,7 +131,7 @@ export const InsumosPage: React.FC = () => {
     if (!confirm('¿Estás seguro de eliminar este insumo del inventario?')) return;
     try {
       await deleteInsumoApi(id);
-      await refrescarInsumos();
+      eliminarInsumoLocal(id);
       setNotificacion('Insumo eliminado correctamente');
       setTimeout(() => setNotificacion(null), 3000);
     } catch (err: any) {

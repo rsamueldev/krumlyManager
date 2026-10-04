@@ -38,6 +38,22 @@ interface DataContextType {
   refrescarVentas: () => Promise<void>;
   refrescarClientes: () => Promise<void>;
   refrescarTodo: () => Promise<void>;
+
+  // Mutaciones locales directas (sin re-fetch completo)
+  agregarInsumoLocal: (insumo: Insumo) => void;
+  actualizarInsumoLocal: (insumo: Insumo) => void;
+  eliminarInsumoLocal: (id: string) => void;
+
+  agregarCategoriaLocal: (categoria: Categoria) => void;
+  eliminarCategoriaLocal: (id: string) => void;
+
+  agregarProductoLocal: (producto: Producto) => void;
+  actualizarProductoLocal: (producto: Producto) => void;
+  eliminarProductoLocal: (id: string) => void;
+  actualizarStockProductoLocal: (id: string, nuevoStock: number) => void;
+
+  agregarClienteLocal: (cliente: Cliente) => void;
+  actualizarClienteLocal: (cliente: Cliente) => void;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -382,6 +398,57 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     ]);
   }, [refrescarInsumos, refrescarCategorias, refrescarRecetas, refrescarProductos, refrescarVentas, refrescarClientes]);
 
+  // ──────────────────────────────────────────────────────────────
+  // Mutaciones locales: actualizan la UI al instante con la
+  // respuesta confirmada del servidor, sin re-fetch completo.
+  // ──────────────────────────────────────────────────────────────
+
+  const agregarInsumoLocal = useCallback((insumo: Insumo) => {
+    setInsumos((prev) => [insumo, ...prev]);
+  }, []);
+
+  const actualizarInsumoLocal = useCallback((insumo: Insumo) => {
+    setInsumos((prev) => prev.map((i) => (i.id === insumo.id ? insumo : i)));
+  }, []);
+
+  const eliminarInsumoLocal = useCallback((id: string) => {
+    setInsumos((prev) => prev.filter((i) => i.id !== id));
+  }, []);
+
+  const agregarCategoriaLocal = useCallback((categoria: Categoria) => {
+    setCategorias((prev) => [...prev, categoria]);
+  }, []);
+
+  const eliminarCategoriaLocal = useCallback((id: string) => {
+    setCategorias((prev) => prev.filter((c) => c.id !== id));
+  }, []);
+
+  const agregarProductoLocal = useCallback((producto: Producto) => {
+    setProductos((prev) => [producto, ...prev]);
+  }, []);
+
+  const actualizarProductoLocal = useCallback((producto: Producto) => {
+    setProductos((prev) => prev.map((p) => (p.id === producto.id ? producto : p)));
+  }, []);
+
+  const eliminarProductoLocal = useCallback((id: string) => {
+    setProductos((prev) => prev.filter((p) => p.id !== id));
+  }, []);
+
+  const actualizarStockProductoLocal = useCallback((id: string, nuevoStock: number) => {
+    setProductos((prev) =>
+      prev.map((p) => (p.id === id ? { ...p, stockActual: nuevoStock } : p))
+    );
+  }, []);
+
+  const agregarClienteLocal = useCallback((cliente: Cliente) => {
+    setClientes((prev) => [cliente, ...prev]);
+  }, []);
+
+  const actualizarClienteLocal = useCallback((cliente: Cliente) => {
+    setClientes((prev) => prev.map((c) => (c.id === cliente.id ? cliente : c)));
+  }, []);
+
   return (
     <DataContext.Provider
       value={{
@@ -410,6 +477,17 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         refrescarVentas,
         refrescarClientes,
         refrescarTodo,
+        agregarInsumoLocal,
+        actualizarInsumoLocal,
+        eliminarInsumoLocal,
+        agregarCategoriaLocal,
+        eliminarCategoriaLocal,
+        agregarProductoLocal,
+        actualizarProductoLocal,
+        eliminarProductoLocal,
+        actualizarStockProductoLocal,
+        agregarClienteLocal,
+        actualizarClienteLocal,
       }}
     >
       {children}
