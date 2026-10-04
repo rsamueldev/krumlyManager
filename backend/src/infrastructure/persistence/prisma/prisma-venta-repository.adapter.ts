@@ -24,6 +24,12 @@ export class PrismaVentaRepositoryAdapter implements VentaRepositoryPort {
         const cant = Math.max(1, Number(item.cantidad) || 1);
         const prod = await tx.producto.findUnique({
           where: { id: item.productoId },
+          include: {
+            insumosAdicionales: {
+              where: { tipoUso: 'despacho' },
+              include: { insumo: true },
+            },
+          },
         });
         if (!prod) {
           throw new Error(`El producto especificado (${item.productoId}) no existe.`);
@@ -34,14 +40,23 @@ export class PrismaVentaRepositoryAdapter implements VentaRepositoryPort {
           );
         }
 
+        // Descontar stock del producto terminado (galleta congelada)
         await tx.producto.update({
           where: { id: item.productoId },
-          data: {
-            stockActual: {
-              decrement: cant,
-            },
-          },
+          data: { stockActual: { decrement: cant } },
         });
+
+        // Descontar stock de insumos de despacho (empaque + decoración final)
+        // Cada galleta vendida consume la fracción configurada (ej: 0.5 caja)
+        for (const insumoDespacho of (prod as any).insumosAdicionales || []) {
+          const cantInsumo = Number(insumoDespacho.cantidad) * cant;
+          if (cantInsumo > 0) {
+            await tx.insumo.update({
+              where: { id: insumoDespacho.insumoId },
+              data: { stockActual: { decrement: cantInsumo } },
+            });
+          }
+        }
       }
 
       const isUuid = (val?: string | null): boolean => {

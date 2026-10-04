@@ -11,14 +11,14 @@ export interface CrearProductoDto {
   categoriaId?: string;
   recetaId?: string;
   pesoMasaGramos?: number;
-  costoEmpaque?: number;
+  // costoEmpaque is NO LONGER a manual field — it's auto-calculated from despacho insumos
   costoManoObra?: number;
   costoDepreciacion?: number;
   porcentajeDesperdicio?: number;
   precioVenta: number;
   stockActual?: number;
   stockMinimo?: number;
-  insumosAdicionales?: InsumoAdicionalInput[];
+  insumosAdicionales?: InsumoAdicionalInput[];  // each has tipoUso: 'produccion' | 'despacho'
 }
 
 export class CrearProductoUseCase {
@@ -45,25 +45,33 @@ export class CrearProductoUseCase {
       }
     }
 
-    // Calcular costo de insumos adicionales / toppings
-    let costoInsumosAdicionales = 0;
-    if (dto.insumosAdicionales && dto.insumosAdicionales.length > 0) {
-      for (const item of dto.insumosAdicionales) {
-        const insumo = await this.insumoRepository.findById(item.insumoId);
-        if (insumo) {
-          costoInsumosAdicionales += item.cantidad * insumo.costoUnitario;
-        }
-      }
+    // Separar insumos por fase de consumo
+    const insumosProduccion = (dto.insumosAdicionales || []).filter(i => i.tipoUso === 'produccion');
+    const insumosDespacho   = (dto.insumosAdicionales || []).filter(i => i.tipoUso === 'despacho');
+
+    // Calcular costo de rellenos/toppings (se gastan al hornear)
+    let costoRellenosAdicionales = 0;
+    for (const item of insumosProduccion) {
+      const insumo = await this.insumoRepository.findById(item.insumoId);
+      if (insumo) costoRellenosAdicionales += item.cantidad * insumo.costoUnitario;
     }
-    costoInsumosAdicionales = Number(costoInsumosAdicionales.toFixed(4));
+    costoRellenosAdicionales = Number(costoRellenosAdicionales.toFixed(4));
+
+    // Calcular costo de empaque/decoracion final (se gastan al vender)
+    let costoEmpaqueDespacho = 0;
+    for (const item of insumosDespacho) {
+      const insumo = await this.insumoRepository.findById(item.insumoId);
+      if (insumo) costoEmpaqueDespacho += item.cantidad * insumo.costoUnitario;
+    }
+    costoEmpaqueDespacho = Number(costoEmpaqueDespacho.toFixed(4));
 
     const pesoMasa = dto.pesoMasaGramos || 0;
     const { costoMasaUnidad, costoDirectoTotal, margenGananciaPorcentaje } =
       ProductoEntity.calcularCostos(
         pesoMasa,
         costoPorGramoReceta,
-        costoInsumosAdicionales,
-        dto.costoEmpaque || 0,
+        costoRellenosAdicionales,
+        costoEmpaqueDespacho,
         dto.costoManoObra || 0,
         dto.costoDepreciacion || 0,
         dto.porcentajeDesperdicio ?? 5,
@@ -76,8 +84,8 @@ export class CrearProductoUseCase {
       recetaId: dto.recetaId || undefined,
       pesoMasaGramos: pesoMasa,
       costoMasaUnidad,
-      costoInsumosAdicionales,
-      costoEmpaque: dto.costoEmpaque || 0,
+      costoInsumosAdicionales: costoRellenosAdicionales,
+      costoEmpaque: costoEmpaqueDespacho,   // ← ahora es automático
       costoManoObra: dto.costoManoObra || 0,
       costoDepreciacion: dto.costoDepreciacion || 0,
       porcentajeDesperdicio: dto.porcentajeDesperdicio ?? 5,

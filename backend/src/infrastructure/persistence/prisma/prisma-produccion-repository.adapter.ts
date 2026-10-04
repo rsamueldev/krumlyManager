@@ -60,9 +60,12 @@ export class PrismaProduccionRepositoryAdapter implements ProduccionRepositoryPo
       }
     }
 
-    // 2. Consumo por Insumos Adicionales del Producto (ej. empaque, capacillos por unidad)
+    // 2. Consumo por Insumos Adicionales del Producto — SOLO los de produccion
+    // (toppings internos/rellenos que van en la masa antes de congelar)
+    // Los de tipo 'despacho' (empaque, decoración final) se descuentan en la venta, no aquí.
     if (producto.insumosAdicionales) {
       for (const itemAdicional of producto.insumosAdicionales) {
+        if (itemAdicional.tipoUso !== 'produccion') continue;  // ← ignorar despacho
         const insumo = itemAdicional.insumo;
         const cantPorUnidad = Number(itemAdicional.cantidad) || 0;
         const requereInsumo = cantPorUnidad * cantidadAProducir;

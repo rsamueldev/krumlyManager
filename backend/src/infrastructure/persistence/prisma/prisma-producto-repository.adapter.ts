@@ -58,6 +58,7 @@ export class PrismaProductoRepositoryAdapter implements ProductoRepositoryPort {
         pia.productoId,
         pia.insumoId,
         Number(pia.cantidad),
+        (pia.tipoUso as 'produccion' | 'despacho') || 'produccion',
         costoCalculado,
         insumoEntity,
       );
@@ -144,6 +145,7 @@ export class PrismaProductoRepositoryAdapter implements ProductoRepositoryPort {
               create: data.insumosAdicionales.map((i) => ({
                 insumoId: i.insumoId,
                 cantidad: i.cantidad,
+                tipoUso: i.tipoUso || 'produccion',
               })),
             }
           : undefined,
@@ -192,6 +194,7 @@ export class PrismaProductoRepositoryAdapter implements ProductoRepositoryPort {
               create: data.insumosAdicionales.map((i) => ({
                 insumoId: i.insumoId,
                 cantidad: i.cantidad,
+                tipoUso: i.tipoUso || 'produccion',
               })),
             }
           : undefined,

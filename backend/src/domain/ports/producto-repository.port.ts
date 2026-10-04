@@ -1,8 +1,10 @@
 import { ProductoEntity } from '../entities/producto.entity';
+import { TipoUsoInsumo } from '../entities/producto.entity';
 
 export interface InsumoAdicionalInput {
   insumoId: string;
   cantidad: number;
+  tipoUso: TipoUsoInsumo;  // 'produccion' | 'despacho'
 }
 
 export interface CrearProductoData {
@@ -11,8 +13,8 @@ export interface CrearProductoData {
   recetaId?: string;
   pesoMasaGramos?: number;
   costoMasaUnidad?: number;
-  costoInsumosAdicionales?: number;
-  costoEmpaque?: number;
+  costoInsumosAdicionales?: number;  // sum of produccion insumos cost
+  costoEmpaque?: number;             // sum of despacho insumos cost (auto)
   costoManoObra?: number;
   costoDepreciacion?: number;
   porcentajeDesperdicio?: number;

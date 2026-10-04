@@ -22,6 +22,7 @@ import {
   ChefHat,
   Cookie,
   Edit2,
+  Package,
   Plus,
   RefreshCw,
   Save,
@@ -56,12 +57,14 @@ export const ProductosPage: React.FC = () => {
   const [stockActual, setStockActual] = useState<number>(25);
   const [stockMinimo, setStockMinimo] = useState<number>(10);
 
-  // Indirect Costs & Toppings
-  const [costoEmpaque, setCostoEmpaque] = useState<number>(0.05);
+  // Indirect Costs & Insumos by Phase
   const [costoManoObra, setCostoManoObra] = useState<number>(0.10);
   const [costoDepreciacion, setCostoDepreciacion] = useState<number>(0.03);
   const [porcentajeDesperdicio, setPorcentajeDesperdicio] = useState<number>(5);
-  const [toppings, setToppings] = useState<ProductoInsumoAdicional[]>([]);
+  // Phase A: Rellenos e Inclusiones (consumed at PRODUCTION / baking)
+  const [rellenosProduccion, setRellenosProduccion] = useState<ProductoInsumoAdicional[]>([]);
+  // Phase B: Empaque & Decoración Final (consumed at SALE / dispatch)
+  const [empaqueDespacho, setEmpaqueDespacho] = useState<ProductoInsumoAdicional[]>([]);
 
   const [notificacion, setNotificacion] = useState<string | null>(null);
   const [errorModal, setErrorModal] = useState<string | null>(null);
@@ -84,11 +87,11 @@ export const ProductosPage: React.FC = () => {
     setPrecioVenta(2.5);
     setStockActual(25);
     setStockMinimo(10);
-    setCostoEmpaque(0.05);
     setCostoManoObra(0.10);
     setCostoDepreciacion(0.03);
     setPorcentajeDesperdicio(5);
-    setToppings([]);
+    setRellenosProduccion([]);
+    setEmpaqueDespacho([]);
     setErrorModal(null);
     setModalAbierto(true);
   };
@@ -103,16 +106,17 @@ export const ProductosPage: React.FC = () => {
     setPrecioVenta(producto.precioVenta);
     setStockActual(producto.stockActual);
     setStockMinimo(producto.stockMinimo);
-    setCostoEmpaque(producto.costoEmpaque || 0);
     setCostoManoObra(producto.costoManoObra || 0);
     setCostoDepreciacion(producto.costoDepreciacion || 0);
     setPorcentajeDesperdicio(producto.porcentajeDesperdicio ?? 5);
-    setToppings(
-      (producto.insumosAdicionales || []).map((t) => ({
-        ...t,
-        costoCalculado: t.costoCalculado ?? (t.insumo ? Number((t.cantidad * t.insumo.costoUnitario).toFixed(4)) : 0),
-      })),
-    );
+
+    const todos = (producto.insumosAdicionales || []).map((t) => ({
+      ...t,
+      tipoUso: (t.tipoUso || 'produccion') as 'produccion' | 'despacho',
+      costoCalculado: t.costoCalculado ?? (t.insumo ? Number((t.cantidad * t.insumo.costoUnitario).toFixed(4)) : 0),
+    }));
+    setRellenosProduccion(todos.filter((t) => t.tipoUso !== 'despacho'));
+    setEmpaqueDespacho(todos.filter((t) => t.tipoUso === 'despacho'));
     setErrorModal(null);
     setModalAbierto(true);
   };
@@ -128,22 +132,32 @@ export const ProductosPage: React.FC = () => {
   }, [pesoMasaGramos, recetaSeleccionada]);
 
   const costoToppingsCalculado = useMemo(() => {
-    return toppings.reduce((acc, curr) => {
+    // Rellenos (produccion) cost
+    return rellenosProduccion.reduce((acc, curr) => {
       const insumo = insumos.find((i) => i.id === curr.insumoId) || curr.insumo;
       const costoUnitario = insumo ? insumo.costoUnitario : 0;
       return acc + curr.cantidad * costoUnitario;
     }, 0);
-  }, [toppings, insumos]);
+  }, [rellenosProduccion, insumos]);
+
+  // costoEmpaque = AUTO-calculated from empaqueDespacho insumos (read-only in Step 3)
+  const costoEmpaqueCalculado = useMemo(() => {
+    return empaqueDespacho.reduce((acc, curr) => {
+      const insumo = insumos.find((i) => i.id === curr.insumoId) || curr.insumo;
+      const costoUnitario = insumo ? insumo.costoUnitario : 0;
+      return acc + curr.cantidad * costoUnitario;
+    }, 0);
+  }, [empaqueDespacho, insumos]);
 
   const subtotalDirectoSinDesperdicio = useMemo(() => {
     return (
       costoMasaCalculado +
       costoToppingsCalculado +
-      costoEmpaque +
+      costoEmpaqueCalculado +
       costoManoObra +
       costoDepreciacion
     );
-  }, [costoMasaCalculado, costoToppingsCalculado, costoEmpaque, costoManoObra, costoDepreciacion]);
+  }, [costoMasaCalculado, costoToppingsCalculado, costoEmpaqueCalculado, costoManoObra, costoDepreciacion]);
 
   const costoDirectoTotalCalculado = useMemo(() => {
     const factorDesperdicio = 1 + Math.max(0, porcentajeDesperdicio) / 100;
@@ -159,52 +173,71 @@ export const ProductosPage: React.FC = () => {
     return precioVenta <= costoDirectoTotalCalculado;
   }, [precioVenta, costoDirectoTotalCalculado]);
 
-  // Manejadores Toppings
-  const handleAgregarTopping = () => {
+  // ── Handlers Rellenos (Fase Produccion) ──────────────────────────────────
+  const handleAgregarRelleno = () => {
     const defaultInsumo = insumos.length > 0 ? insumos[0] : undefined;
-    setToppings([
-      ...toppings,
+    setRellenosProduccion([
+      ...rellenosProduccion,
       {
         insumoId: defaultInsumo ? defaultInsumo.id : '',
         cantidad: 15,
+        tipoUso: 'produccion',
         costoCalculado: defaultInsumo ? Number((15 * defaultInsumo.costoUnitario).toFixed(4)) : 0,
         insumo: defaultInsumo,
       },
     ]);
   };
 
-  const handleCambiarToppingInsumo = (index: number, insumoId: string) => {
+  const handleCambiarRellenoInsumo = (index: number, insumoId: string) => {
     const targetInsumo = insumos.find((i) => i.id === insumoId);
-    const nuevosToppings = [...toppings];
-    const item = nuevosToppings[index];
-    const costoUnit = targetInsumo ? targetInsumo.costoUnitario : 0;
-
-    nuevosToppings[index] = {
-      ...item,
-      insumoId,
-      insumo: targetInsumo,
-      costoCalculado: Number((item.cantidad * costoUnit).toFixed(4)),
-    };
-    setToppings(nuevosToppings);
+    const nuevos = [...rellenosProduccion];
+    const item = nuevos[index];
+    nuevos[index] = { ...item, insumoId, insumo: targetInsumo, costoCalculado: Number((item.cantidad * (targetInsumo?.costoUnitario || 0)).toFixed(4)) };
+    setRellenosProduccion(nuevos);
   };
 
-  const handleCambiarToppingCantidad = (index: number, cantidad: number) => {
-    const nuevosToppings = [...toppings];
-    const item = nuevosToppings[index];
+  const handleCambiarRellenoCantidad = (index: number, cantidad: number) => {
+    const nuevos = [...rellenosProduccion];
+    const item = nuevos[index];
     const targetInsumo = insumos.find((i) => i.id === item.insumoId) || item.insumo;
-    const costoUnit = targetInsumo ? targetInsumo.costoUnitario : 0;
-
-    nuevosToppings[index] = {
-      ...item,
-      cantidad: cantidad >= 0 ? cantidad : 0,
-      costoCalculado: Number((Math.max(0, cantidad) * costoUnit).toFixed(4)),
-    };
-    setToppings(nuevosToppings);
+    nuevos[index] = { ...item, cantidad: Math.max(0, cantidad), costoCalculado: Number((Math.max(0, cantidad) * (targetInsumo?.costoUnitario || 0)).toFixed(4)) };
+    setRellenosProduccion(nuevos);
   };
 
-  const handleEliminarTopping = (index: number) => {
-    setToppings(toppings.filter((_, i) => i !== index));
+  const handleEliminarRelleno = (index: number) => setRellenosProduccion(rellenosProduccion.filter((_, i) => i !== index));
+
+  // ── Handlers Empaque (Fase Despacho) ─────────────────────────────────────
+  const handleAgregarEmpaque = () => {
+    const defaultInsumo = insumos.length > 0 ? insumos[0] : undefined;
+    setEmpaqueDespacho([
+      ...empaqueDespacho,
+      {
+        insumoId: defaultInsumo ? defaultInsumo.id : '',
+        cantidad: 0.5,
+        tipoUso: 'despacho',
+        costoCalculado: defaultInsumo ? Number((0.5 * defaultInsumo.costoUnitario).toFixed(4)) : 0,
+        insumo: defaultInsumo,
+      },
+    ]);
   };
+
+  const handleCambiarEmpaqueInsumo = (index: number, insumoId: string) => {
+    const targetInsumo = insumos.find((i) => i.id === insumoId);
+    const nuevos = [...empaqueDespacho];
+    const item = nuevos[index];
+    nuevos[index] = { ...item, insumoId, insumo: targetInsumo, costoCalculado: Number((item.cantidad * (targetInsumo?.costoUnitario || 0)).toFixed(4)) };
+    setEmpaqueDespacho(nuevos);
+  };
+
+  const handleCambiarEmpaqueCantidad = (index: number, cantidad: number) => {
+    const nuevos = [...empaqueDespacho];
+    const item = nuevos[index];
+    const targetInsumo = insumos.find((i) => i.id === item.insumoId) || item.insumo;
+    nuevos[index] = { ...item, cantidad: Math.max(0, cantidad), costoCalculado: Number((Math.max(0, cantidad) * (targetInsumo?.costoUnitario || 0)).toFixed(4)) };
+    setEmpaqueDespacho(nuevos);
+  };
+
+  const handleEliminarEmpaque = (index: number) => setEmpaqueDespacho(empaqueDespacho.filter((_, i) => i !== index));
 
   // Navegación del Wizard
   const handleSiguientePaso = () => {
@@ -247,24 +280,27 @@ export const ProductosPage: React.FC = () => {
 
     setGuardando(true);
     try {
+      const todosInsumos = [
+        ...rellenosProduccion
+          .filter((t) => t.insumoId && t.cantidad > 0)
+          .map((t) => ({ insumoId: t.insumoId, cantidad: t.cantidad, tipoUso: 'produccion' as const })),
+        ...empaqueDespacho
+          .filter((t) => t.insumoId && t.cantidad > 0)
+          .map((t) => ({ insumoId: t.insumoId, cantidad: t.cantidad, tipoUso: 'despacho' as const })),
+      ];
+
       const payload: Partial<Producto> = {
         nombre: nombre.trim(),
         categoriaId: categoriaId || undefined,
         recetaId: recetaId || undefined,
         pesoMasaGramos,
-        costoEmpaque,
         costoManoObra,
         costoDepreciacion,
         porcentajeDesperdicio,
         precioVenta,
         stockActual,
         stockMinimo,
-        insumosAdicionales: toppings
-          .filter((t) => t.insumoId && t.cantidad > 0)
-          .map((t) => ({
-            insumoId: t.insumoId,
-            cantidad: t.cantidad,
-          })),
+        insumosAdicionales: todosInsumos,
       };
 
       if (editandoProductoId) {
@@ -450,17 +486,29 @@ export const ProductosPage: React.FC = () => {
                     )}
                     {prod.insumosAdicionales && prod.insumosAdicionales.length > 0 && (
                       <div className="mt-1 flex flex-wrap gap-1">
-                        {prod.insumosAdicionales.map((t) => (
-                          <span
-                            key={t.id || t.insumoId}
-                            className="inline-flex items-center space-x-1 px-2 py-0.5 bg-amber-50 border border-amber-200 rounded-md text-[10px] text-amber-900 font-semibold"
-                          >
-                            <Sparkles className="w-3 h-3 text-amber-600 shrink-0" />
-                            <span>
-                              {t.insumo?.nombre || 'Topping'}: {t.cantidad}g
+                        {prod.insumosAdicionales.map((t) => {
+                          const isDespacho = t.tipoUso === 'despacho';
+                          const unidad = t.insumo?.unidadMedida === 'gramos' ? 'g' : (t.insumo?.unidadMedida || (isDespacho ? 'ud' : 'g'));
+                          return (
+                            <span
+                              key={t.id || t.insumoId}
+                              className={`inline-flex items-center space-x-1 px-2 py-0.5 rounded-md text-[10px] font-semibold ${
+                                isDespacho
+                                  ? 'bg-blue-50 border border-blue-200 text-blue-900'
+                                  : 'bg-amber-50 border border-amber-200 text-amber-900'
+                              }`}
+                            >
+                              {isDespacho ? (
+                                <Package className="w-3 h-3 text-blue-600 shrink-0" />
+                              ) : (
+                                <Sparkles className="w-3 h-3 text-amber-600 shrink-0" />
+                              )}
+                              <span>
+                                {t.insumo?.nombre || (isDespacho ? 'Empaque' : 'Relleno')}: {t.cantidad} {unidad}
+                              </span>
                             </span>
-                          </span>
-                        ))}
+                          );
+                        })}
                       </div>
                     )}
                   </div>
@@ -717,98 +765,160 @@ export const ProductosPage: React.FC = () => {
                 </div>
               )}
 
-              {/* PASO 2: TOPPINGS Y RELLENOS ADICIONALES */}
+              {/* PASO 2: INSUMOS ADICIONALES — Dos Fases */}
               {pasoActual === 2 && (
-                <div className="space-y-4 animate-in fade-in duration-150">
-                  <div className="bg-[#FFF9F5] p-3 rounded-xl border border-krumly-border flex justify-between items-center">
-                    <div>
-                      <h4 className="font-heading font-bold text-xs uppercase tracking-wider text-krumly-chocolate flex items-center space-x-1">
-                        <Sparkles className="w-4 h-4 text-amber-600" />
-                        <span>Paso 2: Toppings y Rellenos Adicionales</span>
-                      </h4>
-                      <p className="text-[11px] text-gray-500 mt-0.5">
-                        Agrega bañados, rellenos o decoraciones por galleta (ej: Nutella, Chispas Hershey's).
-                      </p>
+                <div className="space-y-5 animate-in fade-in duration-150">
+
+                  {/* ── SECCIÓN A: Rellenos e Inclusiones (Fase Producción) ── */}
+                  <div className="space-y-3">
+                    <div className="bg-amber-50 p-3 rounded-xl border border-amber-200 flex justify-between items-center">
+                      <div>
+                        <h4 className="font-heading font-bold text-xs uppercase tracking-wider text-amber-900 flex items-center space-x-1.5">
+                          <span>🍪</span>
+                          <span>Rellenos e Inclusiones (Fase de Producción)</span>
+                        </h4>
+                        <p className="text-[11px] text-amber-700 mt-0.5">
+                          Van dentro de la masa antes de congelar. Se descuentan al hornear el lote.
+                        </p>
+                      </div>
+                      <span className="text-[11px] text-amber-700 font-bold shrink-0 ml-2">
+                        {rellenosProduccion.length} ítem(s)
+                      </span>
                     </div>
-                    <span className="text-[11px] text-gray-500 font-bold shrink-0">
-                      {toppings.length} toppings
-                    </span>
+
+                    <div className="border border-amber-200 rounded-xl overflow-hidden shadow-2xs">
+                      <div className="bg-amber-50 px-3 py-2 grid grid-cols-12 gap-2 text-[10px] font-bold uppercase tracking-wider text-amber-800 border-b border-amber-200">
+                        <div className="col-span-6">Insumo (Relleno / Topping)</div>
+                        <div className="col-span-3">Cantidad (g/ml/ud)</div>
+                        <div className="col-span-2 text-right">Costo</div>
+                        <div className="col-span-1"></div>
+                      </div>
+                      <div className="divide-y divide-amber-100 bg-white">
+                        {rellenosProduccion.length === 0 ? (
+                          <div className="p-5 text-center text-xs text-gray-400 font-medium">
+                            Sin rellenos. Si tu galleta no lleva Nutella, chispas u otros rellenos internos, está bien dejarlo vacío.
+                          </div>
+                        ) : (
+                          rellenosProduccion.map((top, idx) => {
+                            const targetInsumo = insumos.find((i) => i.id === top.insumoId) || top.insumo;
+                            const subtotal = Number((top.cantidad * (targetInsumo?.costoUnitario || 0)).toFixed(3));
+                            return (
+                              <div key={idx} className="px-3 py-2 grid grid-cols-12 gap-2 items-center">
+                                <div className="col-span-6">
+                                  <select
+                                    value={top.insumoId}
+                                    onChange={(e) => handleCambiarRellenoInsumo(idx, e.target.value)}
+                                    className="w-full px-2.5 py-1.5 bg-white border border-amber-200 rounded-lg text-xs font-semibold text-krumly-chocolate focus:ring-2 focus:ring-amber-400 focus:outline-none"
+                                  >
+                                    {insumos.map((ins) => (
+                                      <option key={ins.id} value={ins.id}>
+                                        {ins.nombre} (${ins.costoUnitario.toFixed(4)}/{ins.unidadMedida === 'gramos' ? 'g' : ins.unidadMedida})
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+                                <div className="col-span-3">
+                                  <input type="number" min="0" value={top.cantidad || ''}
+                                    onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); }}
+                                    onChange={(e) => handleCambiarRellenoCantidad(idx, e.target.value === '' ? 0 : parseFloat(e.target.value) || 0)}
+                                    className="w-full px-2 py-1.5 bg-white border border-amber-200 rounded-lg text-xs font-bold text-center text-krumly-chocolate focus:ring-2 focus:ring-amber-400 focus:outline-none"
+                                  />
+                                </div>
+                                <div className="col-span-2 text-right font-bold text-xs text-krumly-chocolate">${subtotal.toFixed(3)}</div>
+                                <div className="col-span-1 flex justify-center">
+                                  <button type="button" onClick={() => handleEliminarRelleno(idx)} className="p-1 text-gray-400 hover:text-red-500 rounded-lg transition-colors cursor-pointer">
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
+
+                    <button type="button" onClick={handleAgregarRelleno}
+                      className="inline-flex items-center space-x-1.5 border border-amber-500 text-amber-700 hover:bg-amber-50 font-bold px-3 py-2 rounded-xl text-xs transition-colors cursor-pointer shadow-2xs">
+                      <Plus className="w-3.5 h-3.5 stroke-[3]" />
+                      <span>Agregar Relleno / Topping Interno</span>
+                    </button>
                   </div>
 
-                  <div className="border border-krumly-border rounded-xl overflow-hidden shadow-2xs">
-                    <div className="bg-[#FFF9F5] px-3 py-2 grid grid-cols-12 gap-2 text-[10px] font-bold uppercase tracking-wider text-gray-500 border-b border-krumly-border">
-                      <div className="col-span-6">Insumo Adicional</div>
-                      <div className="col-span-3">Cantidad (g/ml)</div>
-                      <div className="col-span-2 text-right">Costo</div>
-                      <div className="col-span-1"></div>
+                  {/* ── SECCIÓN B: Empaque y Decoración Final (Fase Despacho) ── */}
+                  <div className="space-y-3">
+                    <div className="bg-blue-50 p-3 rounded-xl border border-blue-200 flex justify-between items-center">
+                      <div>
+                        <h4 className="font-heading font-bold text-xs uppercase tracking-wider text-blue-900 flex items-center space-x-1.5">
+                          <span>📦</span>
+                          <span>Empaque y Decoración Final (Fase de Despacho)</span>
+                        </h4>
+                        <p className="text-[11px] text-blue-700 mt-0.5">
+                          Caja, papel, sticker, drizzle por encima. Se descuentan automáticamente al vender en el POS.
+                          Usa fracciones (ej: <strong>0.5</strong> caja si la caja es para 2 galletas).
+                        </p>
+                      </div>
+                      <span className="text-[11px] text-blue-700 font-bold shrink-0 ml-2">
+                        {empaqueDespacho.length} ítem(s)
+                      </span>
                     </div>
 
-                    <div className="divide-y divide-krumly-border/60 bg-white">
-                      {toppings.length === 0 ? (
-                        <div className="p-6 text-center text-xs text-gray-400 font-medium">
-                          Esta galleta no tiene toppings o rellenos adicionales. Haz clic en "Agregar Topping" si requiere alguno.
-                        </div>
-                      ) : (
-                        toppings.map((top, idx) => {
-                          const targetInsumo = insumos.find((i) => i.id === top.insumoId) || top.insumo;
-                          const costoUnit = targetInsumo ? targetInsumo.costoUnitario : 0;
-                          const subtotal = Number((top.cantidad * costoUnit).toFixed(3));
-
-                          return (
-                            <div key={idx} className="px-3 py-2 grid grid-cols-12 gap-2 items-center">
-                              <div className="col-span-6">
-                                <select
-                                  value={top.insumoId}
-                                  onChange={(e) => handleCambiarToppingInsumo(idx, e.target.value)}
-                                  className="w-full px-2.5 py-1.5 bg-white border border-krumly-border rounded-lg text-xs font-semibold text-krumly-chocolate focus:ring-2 focus:ring-krumly-red focus:outline-none"
-                                >
-                                  {insumos.map((ins) => (
-                                    <option key={ins.id} value={ins.id}>
-                                      {ins.nombre} (${ins.costoUnitario.toFixed(4)}/{ins.unidadMedida === 'gramos' ? 'g' : ins.unidadMedida})
-                                    </option>
-                                  ))}
-                                </select>
+                    <div className="border border-blue-200 rounded-xl overflow-hidden shadow-2xs">
+                      <div className="bg-blue-50 px-3 py-2 grid grid-cols-12 gap-2 text-[10px] font-bold uppercase tracking-wider text-blue-800 border-b border-blue-200">
+                        <div className="col-span-6">Insumo (Empaque / Decoración)</div>
+                        <div className="col-span-3">Cantidad por Galleta</div>
+                        <div className="col-span-2 text-right">Costo</div>
+                        <div className="col-span-1"></div>
+                      </div>
+                      <div className="divide-y divide-blue-100 bg-white">
+                        {empaqueDespacho.length === 0 ? (
+                          <div className="p-5 text-center text-xs text-gray-400 font-medium">
+                            Sin empaque configurado. Agrega Caja, Papel, Sticker, etc. y usa 0.5 si la caja es para 2 galletas.
+                          </div>
+                        ) : (
+                          empaqueDespacho.map((top, idx) => {
+                            const targetInsumo = insumos.find((i) => i.id === top.insumoId) || top.insumo;
+                            const subtotal = Number((top.cantidad * (targetInsumo?.costoUnitario || 0)).toFixed(3));
+                            return (
+                              <div key={idx} className="px-3 py-2 grid grid-cols-12 gap-2 items-center">
+                                <div className="col-span-6">
+                                  <select
+                                    value={top.insumoId}
+                                    onChange={(e) => handleCambiarEmpaqueInsumo(idx, e.target.value)}
+                                    className="w-full px-2.5 py-1.5 bg-white border border-blue-200 rounded-lg text-xs font-semibold text-krumly-chocolate focus:ring-2 focus:ring-blue-400 focus:outline-none"
+                                  >
+                                    {insumos.map((ins) => (
+                                      <option key={ins.id} value={ins.id}>
+                                        {ins.nombre} (${ins.costoUnitario.toFixed(4)}/{ins.unidadMedida === 'gramos' ? 'g' : ins.unidadMedida})
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+                                <div className="col-span-3">
+                                  <input type="number" min="0" step="0.1" value={top.cantidad || ''}
+                                    onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); }}
+                                    onChange={(e) => handleCambiarEmpaqueCantidad(idx, e.target.value === '' ? 0 : parseFloat(e.target.value) || 0)}
+                                    className="w-full px-2 py-1.5 bg-white border border-blue-200 rounded-lg text-xs font-bold text-center text-krumly-chocolate focus:ring-2 focus:ring-blue-400 focus:outline-none"
+                                  />
+                                </div>
+                                <div className="col-span-2 text-right font-bold text-xs text-blue-800">${subtotal.toFixed(3)}</div>
+                                <div className="col-span-1 flex justify-center">
+                                  <button type="button" onClick={() => handleEliminarEmpaque(idx)} className="p-1 text-gray-400 hover:text-red-500 rounded-lg transition-colors cursor-pointer">
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
                               </div>
-
-                              <div className="col-span-3">
-                                <input
-                                  type="number"
-                                  min="0"
-                                  value={top.cantidad || ''}
-                                  onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); }}
-                                  onChange={(e) => handleCambiarToppingCantidad(idx, e.target.value === '' ? 0 : parseFloat(e.target.value) || 0)}
-                                  className="w-full px-2 py-1.5 bg-white border border-krumly-border rounded-lg text-xs font-bold text-center text-krumly-chocolate focus:ring-2 focus:ring-krumly-red focus:outline-none"
-                                />
-                              </div>
-
-                              <div className="col-span-2 text-right font-bold text-xs text-krumly-chocolate">
-                                ${subtotal.toFixed(3)}
-                              </div>
-
-                              <div className="col-span-1 flex justify-center">
-                                <button
-                                  type="button"
-                                  onClick={() => handleEliminarTopping(idx)}
-                                  className="p-1 text-gray-400 hover:text-krumly-red rounded-lg transition-colors cursor-pointer"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                              </div>
-                            </div>
-                          );
-                        })
-                      )}
+                            );
+                          })
+                        )}
+                      </div>
                     </div>
+
+                    <button type="button" onClick={handleAgregarEmpaque}
+                      className="inline-flex items-center space-x-1.5 border border-blue-400 text-blue-700 hover:bg-blue-50 font-bold px-3 py-2 rounded-xl text-xs transition-colors cursor-pointer shadow-2xs">
+                      <Plus className="w-3.5 h-3.5 stroke-[3]" />
+                      <span>Agregar Empaque / Decoración Final</span>
+                    </button>
                   </div>
-
-                  <button
-                    type="button"
-                    onClick={handleAgregarTopping}
-                    className="inline-flex items-center space-x-1.5 border border-krumly-red text-krumly-red hover:bg-krumly-red/5 font-bold px-3 py-2 rounded-xl text-xs transition-colors cursor-pointer shadow-2xs"
-                  >
-                    <Plus className="w-3.5 h-3.5 stroke-[3]" />
-                    <span>Agregar Topping</span>
-                  </button>
                 </div>
               )}
 
@@ -850,16 +960,12 @@ export const ProductosPage: React.FC = () => {
                   {/* Grid de Costos Indirectos */}
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
                     <div>
-                      <label className="block text-[11px] font-bold text-gray-600 mb-1">Empaque ($)</label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={costoEmpaque || ''}
-                        onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); }}
-                        onChange={(e) => setCostoEmpaque(e.target.value === '' ? 0 : parseFloat(e.target.value) || 0)}
-                        className="w-full px-2.5 py-1.5 bg-krumly-cream/30 border border-krumly-border rounded-xl text-xs font-bold text-krumly-chocolate focus:ring-2 focus:ring-krumly-red focus:outline-none"
-                      />
+                      <label className="block text-[11px] font-bold text-gray-600 mb-1">Empaque ($) — Auto</label>
+                      <div className="w-full px-2.5 py-1.5 bg-blue-50 border border-blue-200 rounded-xl text-xs font-bold text-blue-800 flex items-center justify-between">
+                        <span>${costoEmpaqueCalculado.toFixed(4)}</span>
+                        <span className="text-[10px] text-blue-500 font-normal">auto</span>
+                      </div>
+                      <p className="text-[10px] text-blue-600 mt-0.5">Calculado del Paso 2</p>
                     </div>
 
                     <div>
@@ -945,15 +1051,18 @@ export const ProductosPage: React.FC = () => {
 
                   {/* Ficha Resumen Financiero Completa */}
                   <div className="bg-[#FFF9F5] p-4 rounded-xl border border-krumly-border space-y-2 text-xs">
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-gray-600">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-gray-600">
                       <div>
                         <span>Costo Masa:</span> <strong className="text-krumly-chocolate">${costoMasaCalculado.toFixed(3)}</strong>
                       </div>
                       <div>
-                        <span>Costo Toppings:</span> <strong className="text-krumly-chocolate">${costoToppingsCalculado.toFixed(3)}</strong>
+                        <span>Rellenos:</span> <strong className="text-amber-700">${costoToppingsCalculado.toFixed(3)}</strong>
                       </div>
                       <div>
-                        <span>Indirectos:</span> <strong className="text-krumly-chocolate">${(costoEmpaque + costoManoObra + costoDepreciacion).toFixed(2)}</strong>
+                        <span>Empaque (auto):</span> <strong className="text-blue-700">${costoEmpaqueCalculado.toFixed(3)}</strong>
+                      </div>
+                      <div>
+                        <span>MO+Dep:</span> <strong className="text-krumly-chocolate">${(costoManoObra + costoDepreciacion).toFixed(2)}</strong>
                       </div>
                     </div>
 

@@ -2,12 +2,15 @@ import { CategoriaEntity } from './categoria.entity';
 import { InsumoEntity } from './insumo.entity';
 import { RecetaEntity } from './receta.entity';
 
+export type TipoUsoInsumo = 'produccion' | 'despacho';
+
 export class ProductoInsumoAdicionalEntity {
   constructor(
     public readonly id: string,
     public readonly productoId: string,
     public readonly insumoId: string,
     public readonly cantidad: number,
+    public readonly tipoUso: TipoUsoInsumo = 'produccion',
     public readonly costoCalculado?: number,
     public readonly insumo?: InsumoEntity,
   ) {}
@@ -42,8 +45,8 @@ export class ProductoEntity {
   public static calcularCostos(
     pesoMasaGramos: number,
     costoPorGramoReceta: number,
-    costoInsumosAdicionales: number = 0,
-    costoEmpaque: number = 0,
+    costoRellenosAdicionales: number = 0,  // insumos tipoUso='produccion'
+    costoEmpaqueDespacho: number = 0,      // insumos tipoUso='despacho' (auto)
     costoManoObra: number = 0,
     costoDepreciacion: number = 0,
     porcentajeDesperdicio: number = 5,
@@ -57,8 +60,8 @@ export class ProductoEntity {
     
     const subtotalDirecto =
       costoMasaUnidad +
-      costoInsumosAdicionales +
-      costoEmpaque +
+      costoRellenosAdicionales +
+      costoEmpaqueDespacho +
       costoManoObra +
       costoDepreciacion;
 

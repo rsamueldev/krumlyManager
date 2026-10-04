@@ -6,6 +6,7 @@ export interface ProductoInsumoAdicional {
   productoId?: string;
   insumoId: string;
   cantidad: number;
+  tipoUso: 'produccion' | 'despacho';
   costoCalculado?: number;
   insumo?: InsumoItem;
 }

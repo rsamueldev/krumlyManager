@@ -6,8 +6,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 enum Role {
@@ -29,6 +30,11 @@ enum UnidadMedida {
 enum TipoGasto {
   fijo
   variable
+}
+
+enum TipoUsoInsumo {
+  produccion
+  despacho
 }
 
 enum EstadoSync {
@@ -172,11 +178,14 @@ model Producto {
 }
 
 model ProductoInsumoAdicional {
-  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  productoId String   @map("producto_id") @db.Uuid
-  insumoId   String   @map("insumo_id") @db.Uuid
-  cantidad   Decimal  @db.Decimal(10, 2)
-  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  id         String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  productoId String          @map("producto_id") @db.Uuid
+  insumoId   String          @map("insumo_id") @db.Uuid
+  cantidad   Decimal         @db.Decimal(10, 2)
+  // produccion = rellenos/toppings internos (descuenta al producir el lote)
+  // despacho   = empaque + decoración final (descuenta al vender en POS)
+  tipoUso    TipoUsoInsumo   @default(produccion) @map("tipo_uso")
+  createdAt  DateTime        @default(now()) @map("created_at") @db.Timestamp(6)
 
   producto Producto @relation(fields: [productoId], references: [id], onDelete: Cascade)
   insumo   Insumo   @relation(fields: [insumoId], references: [id])
