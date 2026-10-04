@@ -34,6 +34,14 @@ export interface VentaResponse {
   pagos: any[];
 }
 
+export class NetworkError extends Error {
+  isNetworkError: boolean = true;
+  constructor(message: string) {
+    super(message);
+    this.name = 'NetworkError';
+  }
+}
+
 export async function createVentaApi(payload: VentaPayload): Promise<VentaResponse> {
   let res: Response;
   try {
@@ -43,10 +51,11 @@ export async function createVentaApi(payload: VentaPayload): Promise<VentaRespon
       body: JSON.stringify(payload),
     });
   } catch (err: any) {
-    throw new Error('No se pudo conectar con el servidor NestJS (Backend). Verifica que la API esté encendida.');
+    throw new NetworkError('No se pudo conectar con el servidor NestJS (Backend). Verifica que la API esté encendida o revisa tu conexión a internet.');
   }
 
   if (!res.ok) {
+    handleUnauthorized(res);
     const errData = await res.json().catch(() => ({}));
     if (res.status === 401) {
       throw new Error('Sesión no autorizada o token expirado. Por favor inicia sesión nuevamente.');
@@ -65,6 +74,8 @@ export async function fetchVentasApi(): Promise<VentaResponse[]> {
     if (res.ok) {
       const data = await res.json();
       if (Array.isArray(data)) return data;
+    } else {
+      handleUnauthorized(res);
     }
   } catch (err) {
     console.error('Error al consultar ventas de la API:', err);
@@ -81,11 +92,15 @@ export async function syncVentasOfflineApi(ventasOfflinePayloads: VentaPayload[]
       body: JSON.stringify({ ventas: ventasOfflinePayloads }),
     });
   } catch (err: any) {
-    throw new Error('No hay conexión con el servidor para sincronizar las ventas offline.');
+    throw new NetworkError('No hay conexión con el servidor para sincronizar las ventas offline.');
   }
 
   if (!res.ok) {
+    handleUnauthorized(res);
     const errData = await res.json().catch(() => ({}));
+    if (res.status === 401) {
+      throw new Error('Sesión expirada al sincronizar. Por favor inicia sesión de nuevo.');
+    }
     throw new Error(errData.message || 'Error al sincronizar las ventas offline con el servidor');
   }
 

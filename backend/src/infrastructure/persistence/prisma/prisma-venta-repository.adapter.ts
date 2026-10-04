@@ -36,12 +36,19 @@ export class PrismaVentaRepositoryAdapter implements VentaRepositoryPort {
         });
       }
 
+      const isUuid = (val?: string | null): boolean => {
+        if (!val || typeof val !== 'string') return false;
+        return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val.trim());
+      };
+
       // 2. Crear registro de Venta con detalles y pagos anidados
+      const clienteId = isUuid(ventaData.clienteId) ? ventaData.clienteId : null;
+
       const nuevaVenta = await tx.venta.create({
         data: {
           codigoVenta,
           fechaVenta: new Date(),
-          clienteId: ventaData.clienteId || null,
+          clienteId,
           totalVenta: ventaData.totalVenta || 0,
           estadoSincronizacion: (ventaData.estadoSincronizacion as any) || 'online',
           usuarioId: ventaData.usuarioId!,

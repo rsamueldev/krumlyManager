@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { CartItem, MetodoPagoTipo } from './PosPage';
-import { createVentaApi, VentaPagoPayload } from '../../services/ventasService';
+import { createVentaApi, NetworkError, VentaPagoPayload } from '../../services/ventasService';
 import { guardarVentaOffline } from '../../services/offlineStorage';
 import { useTasaCambio } from '../../context/TasaCambioContext';
 import { useData } from '../../context/DataContext';
@@ -209,11 +209,17 @@ export const ModalPagoMixto: React.FC<ModalPagoMixtoProps> = ({
         const response = await createVentaApi(payload);
         await Promise.all([refrescarProductos(), refrescarVentas()]);
         onVentaCompletada(response.codigoVenta, response.totalVenta);
-      } catch (netErr: any) {
-        // Fallback si la API de backend no responde por fallo de red
-        const record = await guardarVentaOffline(payload);
-        await Promise.all([refrescarProductos(), refrescarVentas()]);
-        onVentaCompletada(`${record.codigoTemp} (Modo Offline)`, totalUSD);
+      } catch (err: any) {
+        // Fallback a modo offline ÚNICAMENTE si fue error de red/conexión
+        if (err?.isNetworkError || err instanceof NetworkError) {
+          const record = await guardarVentaOffline(payload);
+          await Promise.all([refrescarProductos(), refrescarVentas()]);
+          onVentaCompletada(`${record.codigoTemp} (Modo Offline)`, totalUSD);
+        } else {
+          // Si fue error del servidor (e.g. Stock insuficiente, 401 token expirado, etc.)
+          // Mostrar el error directamente en la interfaz
+          setErrorText(err.message || 'Error al procesar la venta en la base de datos.');
+        }
       }
     } catch (err: any) {
       setErrorText(err.message || 'Error al procesar la venta en la base de datos');
