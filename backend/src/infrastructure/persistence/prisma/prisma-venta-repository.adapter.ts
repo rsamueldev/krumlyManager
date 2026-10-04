@@ -101,7 +101,7 @@ export class PrismaVentaRepositoryAdapter implements VentaRepositoryPort {
       });
 
       return this.mapToDomain(nuevaVenta);
-    });
+    }, { timeout: 30000, maxWait: 30000 });
   }
 
   async sincronizarLoteOffline(
@@ -250,7 +250,7 @@ export class PrismaVentaRepositoryAdapter implements VentaRepositoryPort {
           });
 
           return this.mapToDomain(ventaCreada);
-        });
+        }, { timeout: 30000, maxWait: 30000 });
 
         if (ventaRes) {
           resultados.push(ventaRes);
