@@ -11,18 +11,26 @@ export class PrismaVentaRepositoryAdapter implements VentaRepositoryPort {
     const randomSuffix = Math.floor(100000 + Math.random() * 900000).toString();
     const codigoVenta = `VNT-${randomSuffix}`;
 
+    const normalizarMetodo = (m?: string): any => {
+      if (!m) return 'efectivo_usd';
+      if (m === 'punto') return 'punto_venta';
+      const valid = ['efectivo_usd', 'efectivo_ves', 'pago_movil', 'punto_venta', 'transferencia'];
+      return valid.includes(m) ? m : 'efectivo_usd';
+    };
+
     return await this.prisma.$transaction(async (tx) => {
       // 1. Descontar stockActual de cada producto en la base de datos
       for (const item of detalles) {
+        const cant = Math.max(1, Number(item.cantidad) || 1);
         const prod = await tx.producto.findUnique({
           where: { id: item.productoId },
         });
         if (!prod) {
           throw new Error(`El producto especificado (${item.productoId}) no existe.`);
         }
-        if (prod.stockActual < item.cantidad) {
+        if (prod.stockActual < cant) {
           throw new Error(
-            `Stock insuficiente para "${prod.nombre}". Disponible: ${prod.stockActual}, solicitado: ${item.cantidad}`,
+            `Stock insuficiente para "${prod.nombre}". Disponible: ${prod.stockActual}, solicitado: ${cant}`,
           );
         }
 
@@ -30,7 +38,7 @@ export class PrismaVentaRepositoryAdapter implements VentaRepositoryPort {
           where: { id: item.productoId },
           data: {
             stockActual: {
-              decrement: item.cantidad,
+              decrement: cant,
             },
           },
         });
@@ -49,24 +57,28 @@ export class PrismaVentaRepositoryAdapter implements VentaRepositoryPort {
           codigoVenta,
           fechaVenta: new Date(),
           clienteId,
-          totalVenta: ventaData.totalVenta || 0,
+          totalVenta: Number(ventaData.totalVenta) || 0,
           estadoSincronizacion: (ventaData.estadoSincronizacion as any) || 'online',
           usuarioId: ventaData.usuarioId!,
           detalles: {
-            create: detalles.map((d) => ({
-              productoId: d.productoId,
-              cantidad: d.cantidad,
-              precioUnitario: d.precioUnitario,
-              subtotal: d.cantidad * d.precioUnitario,
-            })),
+            create: detalles.map((d) => {
+              const cant = Math.max(1, Number(d.cantidad) || 1);
+              const precio = Number(d.precioUnitario) || 0;
+              return {
+                productoId: d.productoId,
+                cantidad: cant,
+                precioUnitario: precio,
+                subtotal: cant * precio,
+              };
+            }),
           },
           pagos: {
             create: pagos.map((p) => ({
-              metodoPago: p.metodoPago,
-              montoUsd: p.montoUsd,
-              montoVes: p.montoVes || null,
-              tasaCambio: p.tasaCambio || null,
-              referenciaPago: p.referenciaPago || null,
+              metodoPago: normalizarMetodo(p.metodoPago),
+              montoUsd: Number(p.montoUsd) || 0,
+              montoVes: p.montoVes ? Number(p.montoVes) : null,
+              tasaCambio: p.tasaCambio ? Number(p.tasaCambio) : null,
+              referenciaPago: p.referenciaPago ? String(p.referenciaPago).trim() : null,
             })),
           },
         },

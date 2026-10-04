@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -47,10 +48,14 @@ export class VentasController {
   @Roles(RolUsuario.ADMIN, RolUsuario.CAJERO)
   async create(@Req() req: any, @Body() dto: CrearVentaDto) {
     const usuarioId = req.user?.userId || req.user?.id || req.user?.sub;
-    return this.crearVentaUseCase.execute({
-      ...dto,
-      usuarioId,
-    });
+    try {
+      return await this.crearVentaUseCase.execute({
+        ...dto,
+        usuarioId,
+      });
+    } catch (err: any) {
+      throw new BadRequestException(err.message || 'Error al procesar la venta');
+    }
   }
 
   @Post('batch-sync')
@@ -58,7 +63,11 @@ export class VentasController {
   @Roles(RolUsuario.ADMIN, RolUsuario.CAJERO)
   async batchSync(@Req() req: any, @Body() body: { ventas: VentaOfflineDto[] }) {
     const usuarioId = req.user?.userId || req.user?.id || req.user?.sub;
-    return this.sincronizarVentasOfflineUseCase.execute(usuarioId, body.ventas || []);
+    try {
+      return await this.sincronizarVentasOfflineUseCase.execute(usuarioId, body.ventas || []);
+    } catch (err: any) {
+      throw new BadRequestException(err.message || 'Error al sincronizar las ventas offline');
+    }
   }
 
   @Get()
