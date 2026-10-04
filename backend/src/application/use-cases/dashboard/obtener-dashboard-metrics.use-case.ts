@@ -109,13 +109,32 @@ export class ObtenerDashboardMetricsUseCase {
     const margenNetoPorcentaje =
       totalVentasUsd > 0 ? Number(((utilidadNetaUsd / totalVentasUsd) * 100).toFixed(1)) : 0;
 
-    // Punto de Equilibrio ($) = Gastos Fijos / (1 - (COGS / Ventas))
-    const variableCostRatio = totalVentasUsd > 0 ? cogsUsd / totalVentasUsd : 0;
-    const contributionMarginRatio = 1 - variableCostRatio;
-    const puntoEquilibrioUsd =
-      contributionMarginRatio > 0.05
-        ? Number((gastosFijosUsd / contributionMarginRatio).toFixed(2))
-        : Number((gastosFijosUsd + cogsUsd).toFixed(2));
+    // Punto de Equilibrio corregido:
+    // Meta de Ventas = (Gastos Operativos Totales + Mermas) / Ratio Margen Bruto
+    //
+    // Lógica: Por cada $1 vendido, el Ratio Margen Bruto indica cuánto queda
+    // después de pagar el costo directo de los productos (COGS).
+    // Ese remanente es lo que puede cubrir los gastos operativos (fijos + variables)
+    // y las pérdidas por mermas. La meta es el nivel de ventas donde ese remanente
+    // iguala exactamente la suma de todos los gastos y pérdidas del período.
+    //
+    // Si utilidadNeta >= 0, el equilibrio ya fue superado por las ventas actuales:
+    // la meta real es igual a las ventas actuales (100% de progreso).
+
+    const margenBrutoRatio = totalVentasUsd > 0 ? (totalVentasUsd - cogsUsd) / totalVentasUsd : 0;
+    const totalGastosYMermasUsd = gastosTotalesUsd + mermasTotalesUsd;
+
+    let puntoEquilibrioUsd: number;
+    if (utilidadNetaUsd >= 0) {
+      // El negocio ya está en equilibrio o con ganancia — no hay meta que cubrir
+      puntoEquilibrioUsd = Number(totalVentasUsd.toFixed(2));
+    } else if (margenBrutoRatio > 0.01) {
+      // Caso normal: dividir total de gastos+mermas entre el margen bruto
+      puntoEquilibrioUsd = Number((totalGastosYMermasUsd / margenBrutoRatio).toFixed(2));
+    } else {
+      // Margen bruto casi cero o negativo: la meta mínima es cubrir COGS + gastos
+      puntoEquilibrioUsd = Number((cogsUsd + totalGastosYMermasUsd).toFixed(2));
+    }
 
     const porcentajePuntoEquilibrioAlcanzado =
       puntoEquilibrioUsd > 0
