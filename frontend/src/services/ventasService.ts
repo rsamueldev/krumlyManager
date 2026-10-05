@@ -106,3 +106,26 @@ export async function syncVentasOfflineApi(ventasOfflinePayloads: VentaPayload[]
 
   return await res.json();
 }
+
+export async function deleteVentaApi(id: string): Promise<boolean> {
+  let res: Response;
+  try {
+    res = await fetch(`${API_URL}/ventas/${id}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
+    });
+  } catch (err: any) {
+    throw new NetworkError('No se pudo conectar con el servidor para eliminar la venta.');
+  }
+
+  if (!res.ok) {
+    handleUnauthorized(res);
+    const errData = await res.json().catch(() => ({}));
+    if (res.status === 401) {
+      throw new Error('Sesión expirada. Por favor inicia sesión nuevamente.');
+    }
+    throw new Error(errData.message || 'Error al eliminar la venta');
+  }
+
+  return true;
+}

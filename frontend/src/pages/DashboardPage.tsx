@@ -3,6 +3,7 @@ import { useTasaCambio } from '../context/TasaCambioContext';
 import { useData } from '../context/DataContext';
 import { fetchDashboardMetricsApi, DashboardMetrics } from '../services/dashboardService';
 import { ejecutarSincronizacionOffline } from '../services/offlineSyncService';
+import { deleteVentaApi } from '../services/ventasService';
 import {
   AlertCircle,
   AlertTriangle,
@@ -33,13 +34,14 @@ import { Link } from 'react-router-dom';
 
 export const DashboardPage: React.FC = () => {
   const { tasaCambioBs, convertirUSDToVES, formatearUSD, formatearBS } = useTasaCambio();
-  const { ventas, cargandoVentas, obtenerVentas, refrescarTodo } = useData();
+  const { ventas, cargandoVentas, obtenerVentas, refrescarTodo, eliminarVentaLocal } = useData();
 
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
   const [cargandoMetrics, setCargandoMetrics] = useState<boolean>(true);
 
   const [sincronizando, setSincronizando] = useState(false);
   const [notificacion, setNotificacion] = useState<string | null>(null);
+  const [eliminandoVentaId, setEliminandoVentaId] = useState<string | null>(null);
 
   useEffect(() => {
     obtenerVentas();
@@ -80,6 +82,32 @@ export const DashboardPage: React.FC = () => {
     }
   };
 
+  const handleEliminarVenta = async (venta: any) => {
+    const ticket = venta.codigoVenta || 'esta venta';
+    const esOffline = venta.estadoSincronizacion === 'offline_pending';
+
+    const mensaje = esOffline
+      ? `¿Estás seguro de descartar la venta offline "${ticket}"? Esta acción la eliminará de la cola pendiente.`
+      : `¿Estás seguro de eliminar la venta "${ticket}"? Esta acción cancelará el registro y restaurará automáticamente el stock de los productos e insumos involucrados.`;
+
+    if (!window.confirm(mensaje)) return;
+
+    setEliminandoVentaId(venta.id);
+    try {
+      if (!esOffline) {
+        await deleteVentaApi(venta.id);
+      }
+      eliminarVentaLocal(venta.id);
+      cargarMetricas().catch(() => {});
+      setNotificacion(`Venta "${ticket}" eliminada correctamente.`);
+      setTimeout(() => setNotificacion(null), 3500);
+    } catch (err: any) {
+      alert(err.message || 'Error al eliminar la venta.');
+    } finally {
+      setEliminandoVentaId(null);
+    }
+  };
+
   // Fallback de cálculos si la API aún está sincronizando
   const ventasUSD = useMemo(() => {
     return metrics ? metrics.totalVentasUsd : ventas.reduce((sum, v) => sum + Number(v.totalVenta || 0), 0);
@@ -87,6 +115,14 @@ export const DashboardPage: React.FC = () => {
 
   return (
     <div className="space-y-6 animate-fade-in">
+      {/* Toast Notificación */}
+      {notificacion && (
+        <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 px-4 py-3 rounded-xl text-xs font-semibold flex items-center space-x-2 animate-fade-in shadow-xs">
+          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+          <span>{notificacion}</span>
+        </div>
+      )}
+
       {/* Standard Header Banner */}
       <div className="bg-white rounded-2xl p-6 border border-krumly-border shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
@@ -486,6 +522,7 @@ export const DashboardPage: React.FC = () => {
                   <th className="py-3 px-4">Métodos de Pago</th>
                   <th className="py-3 px-4 text-right">Total ($ USD)</th>
                   <th className="py-3 px-4 text-right">Total (Bs. VES)</th>
+                  <th className="py-3 px-4 text-center">Acciones</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-krumly-border/60">
@@ -537,6 +574,21 @@ export const DashboardPage: React.FC = () => {
                       </td>
                       <td className="py-3 px-4 text-right font-bold text-xs text-gray-600">
                         {totalVes.toFixed(2)} Bs
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        <button
+                          type="button"
+                          onClick={() => handleEliminarVenta(v)}
+                          disabled={eliminandoVentaId === v.id}
+                          title="Eliminar venta y restaurar stock"
+                          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer disabled:opacity-40"
+                        >
+                          {eliminandoVentaId === v.id ? (
+                            <Loader2 className="w-4 h-4 animate-spin text-red-500" />
+                          ) : (
+                            <Trash2 className="w-4 h-4" />
+                          )}
+                        </button>
                       </td>
                     </tr>
                   );

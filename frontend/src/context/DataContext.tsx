@@ -6,7 +6,7 @@ import { fetchRecetasApi, Receta } from '../services/recetasService';
 import { fetchVentasApi, VentaResponse } from '../services/ventasService';
 import { Cliente, fetchClientesApi } from '../services/clientesService';
 import { ejecutarSincronizacionOffline } from '../services/offlineSyncService';
-import { obtenerVentasOffline } from '../services/offlineStorage';
+import { obtenerVentasOffline, eliminarVentaOffline } from '../services/offlineStorage';
 import { useAuth } from './AuthContext';
 
 interface DataContextType {
@@ -54,6 +54,7 @@ interface DataContextType {
 
   agregarClienteLocal: (cliente: Cliente) => void;
   actualizarClienteLocal: (cliente: Cliente) => void;
+  eliminarVentaLocal: (id: string) => void;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -449,6 +450,24 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setClientes((prev) => prev.map((c) => (c.id === cliente.id ? cliente : c)));
   }, []);
 
+  const eliminarVentaLocal = useCallback((id: string) => {
+    // 1. Filtrar de la lista de ventas en memoria inmediatamente (UI instantánea)
+    setVentas((prev) => {
+      const actualizadas = prev.filter((v) => v.id !== id);
+      ventasRef.current = actualizadas;
+      return actualizadas;
+    });
+
+    // 2. Si estaba pendiente en IndexedDB, eliminarla de allí
+    eliminarVentaOffline(id).catch(() => {});
+
+    // 3. En segundo plano sin bloquear la UI, refrescar productos e insumos para sincronizar el stock restaurado
+    setTimeout(() => {
+      refrescarProductos().catch(() => {});
+      refrescarInsumos().catch(() => {});
+    }, 100);
+  }, [refrescarProductos, refrescarInsumos]);
+
   return (
     <DataContext.Provider
       value={{
@@ -488,6 +507,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         actualizarStockProductoLocal,
         agregarClienteLocal,
         actualizarClienteLocal,
+        eliminarVentaLocal,
       }}
     >
       {children}

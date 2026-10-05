@@ -327,6 +327,64 @@ export class PrismaVentaRepositoryAdapter implements VentaRepositoryPort {
     return this.mapToDomain(record);
   }
 
+  async eliminarVenta(id: string): Promise<boolean> {
+    const venta = await this.prisma.venta.findUnique({
+      where: { id },
+      include: {
+        detalles: {
+          include: {
+            producto: {
+              include: {
+                insumosAdicionales: {
+                  where: { tipoUso: 'despacho' },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!venta) {
+      throw new Error(`La venta con ID ${id} no existe.`);
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      // 1. Restaurar stock de productos e insumos de despacho
+      for (const detalle of venta.detalles) {
+        const cant = Math.max(1, Number(detalle.cantidad) || 1);
+
+        // Restaurar stock del producto terminado
+        if (detalle.productoId) {
+          await tx.producto.update({
+            where: { id: detalle.productoId },
+            data: { stockActual: { increment: cant } },
+          });
+        }
+
+        // Restaurar stock de insumos de despacho (empaque + decoración)
+        if (detalle.producto && detalle.producto.insumosAdicionales) {
+          for (const insumoDespacho of detalle.producto.insumosAdicionales) {
+            const cantInsumo = Number(insumoDespacho.cantidad) * cant;
+            if (cantInsumo > 0) {
+              await tx.insumo.update({
+                where: { id: insumoDespacho.insumoId },
+                data: { stockActual: { increment: cantInsumo } },
+              });
+            }
+          }
+        }
+      }
+
+      // 2. Eliminar detalles, pagos y venta
+      await tx.ventaDetalle.deleteMany({ where: { ventaId: id } });
+      await tx.ventaPago.deleteMany({ where: { ventaId: id } });
+      await tx.venta.delete({ where: { id } });
+    });
+
+    return true;
+  }
+
   private mapToDomain(db: any): Venta {
     return {
       id: db.id,

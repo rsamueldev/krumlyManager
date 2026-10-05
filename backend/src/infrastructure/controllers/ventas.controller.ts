@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Post,
@@ -9,6 +10,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { CrearVentaUseCase } from '../../application/use-cases/crear-venta.use-case';
+import { EliminarVentaUseCase } from '../../application/use-cases/eliminar-venta.use-case';
 import { ObtenerVentasUseCase } from '../../application/use-cases/obtener-ventas.use-case';
 import { SincronizarVentasOfflineUseCase, VentaOfflineDto } from '../../application/use-cases/sincronizar-ventas-offline.use-case';
 import { RolUsuario } from '../../domain/entities/usuario.entity';
@@ -41,6 +43,7 @@ export class VentasController {
     private readonly crearVentaUseCase: CrearVentaUseCase,
     private readonly obtenerVentasUseCase: ObtenerVentasUseCase,
     private readonly sincronizarVentasOfflineUseCase: SincronizarVentasOfflineUseCase,
+    private readonly eliminarVentaUseCase: EliminarVentaUseCase,
   ) {}
 
   @Post()
@@ -78,5 +81,16 @@ export class VentasController {
   @Get(':id')
   async findOne(@Param('id') id: string) {
     return this.obtenerVentasUseCase.executeById(id);
+  }
+
+  @Delete(':id')
+  @UseGuards(RolesGuard)
+  @Roles(RolUsuario.ADMIN, RolUsuario.CAJERO)
+  async remove(@Param('id') id: string) {
+    try {
+      return await this.eliminarVentaUseCase.execute(id);
+    } catch (err: any) {
+      throw new BadRequestException(err.message || 'Error al eliminar la venta');
+    }
   }
 }
