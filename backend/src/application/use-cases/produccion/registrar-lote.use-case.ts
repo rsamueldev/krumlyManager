@@ -23,6 +23,10 @@ export class RegistrarLoteUseCase {
       throw new BadRequestException('La cantidad a producir debe ser mayor a cero.');
     }
 
+    if (!input.usuarioId || input.usuarioId.trim() === '') {
+      throw new BadRequestException('ID de usuario no proporcionado.');
+    }
+
     return this.produccionRepo.registrarLote({
       productoId: input.productoId,
       cantidadProducida: Math.floor(input.cantidadProducida),

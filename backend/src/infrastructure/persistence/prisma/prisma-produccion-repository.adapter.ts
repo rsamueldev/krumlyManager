@@ -128,48 +128,58 @@ export class PrismaProduccionRepositoryAdapter implements ProduccionRepositoryPo
       throw new BadRequestException(`No hay suficiente materia prima para este horneado. Faltantes: ${faltantes}`);
     }
 
-    return await this.prisma.$transaction(async (tx) => {
-      // 1. Descontar stock de insumos consumidos
-      for (const item of sim.consumoInsumos) {
-        await tx.insumo.update({
-          where: { id: item.insumoId },
+    return await this.prisma.$transaction(
+      async (tx) => {
+        // 1. Descontar stock de insumos consumidos en paralelo
+        if (sim.consumoInsumos.length > 0) {
+          await Promise.all(
+            sim.consumoInsumos.map((item) =>
+              tx.insumo.update({
+                where: { id: item.insumoId },
+                data: {
+                  stockActual: {
+                    decrement: item.cantidadRequerida,
+                  },
+                },
+              }),
+            ),
+          );
+        }
+
+        // 2. Incrementar stock del producto galleta terminado
+        const productoActualizado = await tx.producto.update({
+          where: { id: data.productoId },
           data: {
             stockActual: {
-              decrement: item.cantidadRequerida,
+              increment: data.cantidadProducida,
             },
           },
         });
-      }
 
-      // 2. Incrementar stock del producto galleta terminado
-      const productoActualizado = await tx.producto.update({
-        where: { id: data.productoId },
-        data: {
-          stockActual: {
-            increment: data.cantidadProducida,
+        // 3. Registrar entrada en lotes_produccion
+        const lote = await tx.loteProduccion.create({
+          data: {
+            productoId: data.productoId,
+            recetaId: productoActualizado.recetaId || null,
+            cantidadProducida: data.cantidadProducida,
+            fechaProduccion: new Date(),
+            notas: data.notas?.trim() || null,
+            usuarioId: data.usuarioId,
           },
-        },
-      });
+          include: {
+            producto: { select: { id: true, nombre: true, stockActual: true } },
+            receta: { select: { id: true, nombre: true } },
+            usuario: { select: { id: true, username: true } },
+          },
+        });
 
-      // 3. Registrar entrada en lotes_produccion
-      const lote = await tx.loteProduccion.create({
-        data: {
-          productoId: data.productoId,
-          recetaId: productoActualizado.recetaId || null,
-          cantidadProducida: data.cantidadProducida,
-          fechaProduccion: new Date(),
-          notas: data.notas?.trim() || null,
-          usuarioId: data.usuarioId,
-        },
-        include: {
-          producto: { select: { id: true, nombre: true, stockActual: true } },
-          receta: { select: { id: true, nombre: true } },
-          usuario: { select: { id: true, username: true } },
-        },
-      });
-
-      return this.toEntity(lote);
-    });
+        return this.toEntity(lote);
+      },
+      {
+        maxWait: 15000,
+        timeout: 30000,
+      },
+    );
   }
 
   async obtenerHistorialLotes(limit: number = 50): Promise<LoteProduccionEntity[]> {
