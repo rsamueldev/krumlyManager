@@ -1410,8 +1410,10 @@ export const ProductosPage: React.FC = () => {
                   {/* Stock Fields (Adapta si es combo o individual) */}
                   <div className={`grid gap-3 ${esCombo ? 'grid-cols-2' : 'grid-cols-3'}`}>
                     {!esCombo && (
-                      <div>
-                        <label className="block text-xs font-bold text-blue-800 mb-1">🧊 Masas en Freezer</label>
+                      <div className="flex flex-col">
+                        <label className="h-5 flex items-center text-xs font-bold text-blue-800 mb-1 truncate">
+                          🧊 Masas en Freezer
+                        </label>
                         <input
                           type="number"
                           min="0"
@@ -1419,14 +1421,17 @@ export const ProductosPage: React.FC = () => {
                           onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); }}
                           onChange={(e) => setStockCongelador(e.target.value === '' ? 0 : parseInt(e.target.value, 10) || 0)}
                           placeholder="0"
-                          className="w-full px-3.5 py-2 bg-blue-50/50 border border-blue-200 rounded-xl text-xs font-bold text-blue-900 focus:ring-2 focus:ring-blue-400 focus:outline-none"
+                          className="w-full h-10 px-3.5 bg-blue-50/50 border border-blue-200 rounded-xl text-xs font-bold text-blue-900 focus:ring-2 focus:ring-blue-400 focus:outline-none"
                         />
+                        <p className="text-[10px] text-blue-700/80 mt-1 font-medium truncate">
+                          Crudas congeladas
+                        </p>
                       </div>
                     )}
 
-                    <div>
-                      <label className="block text-xs font-bold text-gray-700 mb-1">
-                        {esCombo ? '📦 Cajas Listas para Venta' : '✨ Listas para Venta (POS)'}
+                    <div className="flex flex-col">
+                      <label className="h-5 flex items-center text-xs font-bold text-gray-700 mb-1 truncate">
+                        {esCombo ? '📦 Cajas Listas' : '✨ Listas en Vitrina'}
                       </label>
                       <input
                         type="number"
@@ -1434,13 +1439,17 @@ export const ProductosPage: React.FC = () => {
                         value={stockActual || ''}
                         onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); }}
                         onChange={(e) => setStockActual(e.target.value === '' ? 0 : parseInt(e.target.value, 10) || 0)}
-                        className="w-full px-3.5 py-2 bg-krumly-cream/30 border border-krumly-border rounded-xl text-xs font-bold text-krumly-chocolate focus:ring-2 focus:ring-krumly-red focus:outline-none"
+                        placeholder="0"
+                        className="w-full h-10 px-3.5 bg-krumly-cream/30 border border-krumly-border rounded-xl text-xs font-bold text-krumly-chocolate focus:ring-2 focus:ring-krumly-red focus:outline-none"
                       />
+                      <p className="text-[10px] text-gray-400 mt-1 font-medium truncate">
+                        {esCombo ? 'Cajas armadas en stock' : 'Horneadas para venta (POS)'}
+                      </p>
                     </div>
 
-                    <div>
-                      <label className="block text-xs font-bold text-gray-700 mb-1">
-                        {esCombo ? 'Stock Mínimo Alerta (Cajas)' : 'Stock Mínimo en Freezer (Alerta de Amasado)'}
+                    <div className="flex flex-col">
+                      <label className="h-5 flex items-center text-xs font-bold text-gray-700 mb-1 truncate">
+                        {esCombo ? '⚠️ Stock Mínimo' : '⚠️ Mínimo en Freezer'}
                       </label>
                       <input
                         type="number"
@@ -1448,10 +1457,11 @@ export const ProductosPage: React.FC = () => {
                         value={stockMinimo || ''}
                         onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); }}
                         onChange={(e) => setStockMinimo(e.target.value === '' ? 0 : parseInt(e.target.value, 10) || 0)}
-                        className="w-full px-3.5 py-2 bg-krumly-cream/30 border border-krumly-border rounded-xl text-xs font-bold text-krumly-chocolate focus:ring-2 focus:ring-krumly-red focus:outline-none"
+                        placeholder="0"
+                        className="w-full h-10 px-3.5 bg-krumly-cream/30 border border-krumly-border rounded-xl text-xs font-bold text-krumly-chocolate focus:ring-2 focus:ring-krumly-red focus:outline-none"
                       />
-                      <p className="text-[10px] text-gray-400 mt-1">
-                        {esCombo ? 'Avisa cuando queden pocas cajas.' : 'Avisa cuando las masas crudas en congelador bajen de este umbral para volver a amasar.'}
+                      <p className="text-[10px] text-gray-400 mt-1 font-medium truncate">
+                        {esCombo ? 'Alerta para armar cajas' : 'Alerta para volver a amasar'}
                       </p>
                     </div>
                   </div>
