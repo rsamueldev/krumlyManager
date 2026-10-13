@@ -23,10 +23,14 @@ import {
 } from 'lucide-react';
 
 import { ModalPagoMixto } from './ModalPagoMixto';
+import { ModalPersonalizarCombo, GalletaComboSeleccionada } from './ModalPersonalizarCombo';
+import { calcularCombosDisponibles } from '../../utils/comboUtils';
 
 export interface CartItem {
+  idLinea: string;
   producto: Producto;
   cantidad: number;
+  galletasSeleccionadas?: GalletaComboSeleccionada[];
 }
 
 export type MetodoPagoTipo = 'efectivo_usd' | 'pago_movil' | 'punto' | 'mixto';
@@ -46,6 +50,7 @@ export const PosPage: React.FC = () => {
   const [clienteIdSeleccionado, setClienteIdSeleccionado] = useState<string | undefined>(undefined);
   const [metodoPago, setMetodoPago] = useState<MetodoPagoTipo>('efectivo_usd');
   const [modalPagoAbierto, setModalPagoAbierto] = useState(false);
+  const [comboAConfigurar, setComboAConfigurar] = useState<Producto | null>(null);
   const [notificacion, setNotificacion] = useState<string | null>(null);
 
   useEffect(() => {
@@ -71,10 +76,16 @@ export const PosPage: React.FC = () => {
 
   // Cart Handlers
   const agregarAlCarrito = (prod: Producto) => {
+    // Si es un combo, abrir selector de sabores personalizado
+    if (prod.esCombo) {
+      setComboAConfigurar(prod);
+      return;
+    }
+
     if (prod.stockActual <= 0) return;
 
     setCart((prevCart) => {
-      const idx = prevCart.findIndex((item) => item.producto.id === prod.id);
+      const idx = prevCart.findIndex((item) => item.producto.id === prod.id && !item.galletasSeleccionadas);
       if (idx >= 0) {
         const itemActual = prevCart[idx];
         if (itemActual.cantidad >= prod.stockActual) {
@@ -84,18 +95,45 @@ export const PosPage: React.FC = () => {
         newCart[idx] = { ...itemActual, cantidad: itemActual.cantidad + 1 };
         return newCart;
       }
-      return [...prevCart, { producto: prod, cantidad: 1 }];
+      return [...prevCart, { idLinea: prod.id, producto: prod, cantidad: 1 }];
     });
   };
 
-  const cambiarCantidad = (productoId: string, delta: number) => {
+  const handleConfirmarCombo = (
+    combo: Producto,
+    galletas: GalletaComboSeleccionada[],
+    cantidad: number,
+  ) => {
+    const idLinea = `${combo.id}_${galletas.map((g) => g.producto.id).join('_')}`;
+    setCart((prevCart) => {
+      const idx = prevCart.findIndex((item) => item.idLinea === idLinea);
+      if (idx >= 0) {
+        const copy = [...prevCart];
+        copy[idx] = { ...copy[idx], cantidad: copy[idx].cantidad + cantidad };
+        return copy;
+      }
+      return [
+        ...prevCart,
+        {
+          idLinea,
+          producto: combo,
+          cantidad,
+          galletasSeleccionadas: galletas,
+        },
+      ];
+    });
+    setComboAConfigurar(null);
+  };
+
+  const cambiarCantidad = (idLinea: string, delta: number) => {
     setCart((prevCart) => {
       return prevCart
         .map((item) => {
-          if (item.producto.id === productoId) {
+          if (item.idLinea === idLinea) {
             const nuevaCant = item.cantidad + delta;
             if (nuevaCant <= 0) return null;
-            if (nuevaCant > item.producto.stockActual) return item;
+            // Validar stock para productos individuales estándar
+            if (!item.galletasSeleccionadas && nuevaCant > item.producto.stockActual) return item;
             return { ...item, cantidad: nuevaCant };
           }
           return item;
@@ -104,8 +142,8 @@ export const PosPage: React.FC = () => {
     });
   };
 
-  const eliminarDelCarrito = (productoId: string) => {
-    setCart((prevCart) => prevCart.filter((item) => item.producto.id !== productoId));
+  const eliminarDelCarrito = (idLinea: string) => {
+    setCart((prevCart) => prevCart.filter((item) => item.idLinea !== idLinea));
   };
 
   const vaciarCarrito = () => {
@@ -136,8 +174,11 @@ export const PosPage: React.FC = () => {
   };
 
   // Helper for dynamic product images/icons
-  const getProductIcon = (nombre: string) => {
-    const nameLower = nombre.toLowerCase();
+  const getProductIcon = (prod: Producto) => {
+    if (prod.esCombo) {
+      return <Package className="w-14 h-14 text-purple-600/80" />;
+    }
+    const nameLower = prod.nombre.toLowerCase();
     if (nameLower.includes('torta') || nameLower.includes('pastel')) {
       return <Cookie className="w-14 h-14 text-amber-600/70" />;
     }
@@ -233,33 +274,58 @@ export const PosPage: React.FC = () => {
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-4">
               {productosFiltrados.map((prod) => {
-                const itemEnCarrito = cart.find((i) => i.producto.id === prod.id);
-                const cantidadActualEnCart = itemEnCarrito ? itemEnCarrito.cantidad : 0;
-                const stockDisponible = prod.stockActual - cantidadActualEnCart;
-                const esAgotado = prod.stockActual <= 0 || stockDisponible <= 0;
+                const combosArmables = prod.esCombo ? calcularCombosDisponibles(prod, productos) : 0;
+                const stockEfectivo = prod.esCombo ? Math.max(prod.stockActual || 0, combosArmables) : prod.stockActual;
+                const itemsEnCarrito = cart.filter((i) => i.producto.id === prod.id);
+                const cantidadActualEnCart = itemsEnCarrito.reduce((sum, i) => sum + i.cantidad, 0);
+                const stockDisponible = stockEfectivo - cantidadActualEnCart;
+                const esAgotado = stockEfectivo <= 0 || stockDisponible <= 0;
 
                 // Stock badges formatting
                 let stockBadgeClass = 'bg-emerald-100 text-emerald-800 border-emerald-200';
                 let stockBadgeText = `Stock: ${prod.stockActual}`;
 
-                if (prod.stockActual <= 0) {
-                  stockBadgeClass = 'bg-rose-100 text-rose-700 border-rose-200';
-                  stockBadgeText = 'Agotado';
-                } else if (prod.stockActual <= (prod.stockMinimo || 5)) {
-                  stockBadgeClass = 'bg-amber-100 text-amber-800 border-amber-200';
-                  stockBadgeText = `Stock Bajo: ${prod.stockActual}`;
+                if (prod.esCombo) {
+                  if (prod.stockActual > 0) {
+                    stockBadgeClass = 'bg-purple-100 text-purple-800 border-purple-200';
+                    stockBadgeText = `${prod.stockActual} cj listas`;
+                  } else if (combosArmables > 0) {
+                    stockBadgeClass = 'bg-amber-100 text-amber-800 border-amber-200';
+                    stockBadgeText = `${combosArmables} armables`;
+                  } else {
+                    stockBadgeClass = 'bg-rose-100 text-rose-700 border-rose-200';
+                    stockBadgeText = 'Agotado';
+                  }
+                } else {
+                  if (prod.stockActual <= 0) {
+                    stockBadgeClass = 'bg-rose-100 text-rose-700 border-rose-200';
+                    stockBadgeText = 'Agotado';
+                  } else {
+                    stockBadgeClass = 'bg-emerald-100 text-emerald-800 border-emerald-200';
+                    stockBadgeText = `${prod.stockActual} en vitrina`;
+                  }
                 }
 
                 return (
                   <div
                     key={prod.id}
-                    className={`bg-white rounded-2xl border border-krumly-border p-3.5 flex flex-col justify-between transition-all duration-200 shadow-2xs hover:shadow-md ${
-                      esAgotado ? 'opacity-65' : ''
-                    }`}
+                    className={`bg-white rounded-2xl border p-3.5 flex flex-col justify-between transition-all duration-200 shadow-2xs hover:shadow-md ${
+                      prod.esCombo ? 'border-purple-200' : 'border-krumly-border'
+                    } ${esAgotado ? 'opacity-65' : ''}`}
                   >
                     {/* Imagen / Iluminación del Producto */}
-                    <div className="w-full h-28 rounded-xl bg-[#FFF9F5] border border-amber-100/60 flex items-center justify-center mb-3 relative overflow-hidden group">
-                      {getProductIcon(prod.nombre)}
+                    <div className={`w-full h-28 rounded-xl border flex items-center justify-center mb-3 relative overflow-hidden group ${
+                      prod.esCombo
+                        ? 'bg-purple-50/60 border-purple-100'
+                        : 'bg-[#FFF9F5] border-amber-100/60'
+                    }`}>
+                      {prod.esCombo && (
+                        <span className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-purple-600 text-white font-bold text-[9px] shadow-xs flex items-center space-x-1">
+                          <span>🎁</span>
+                          <span>COMBO</span>
+                        </span>
+                      )}
+                      {getProductIcon(prod)}
                     </div>
 
                     {/* Información Principal */}
@@ -267,6 +333,11 @@ export const PosPage: React.FC = () => {
                       <h4 className="font-bold text-xs text-krumly-chocolate leading-snug line-clamp-2">
                         {prod.nombre}
                       </h4>
+                      {prod.esCombo && (
+                        <p className="text-[10px] text-purple-700 font-semibold line-clamp-1">
+                          ✨ Elige sabores al agregar
+                        </p>
+                      )}
                       <p className="font-extrabold text-sm text-krumly-chocolate">
                         ${prod.precioVenta.toFixed(2)}
                       </p>
@@ -287,9 +358,11 @@ export const PosPage: React.FC = () => {
                         className={`w-7 h-7 rounded-xl flex items-center justify-center transition-all cursor-pointer ${
                           esAgotado
                             ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                            : prod.esCombo
+                            ? 'bg-purple-100 hover:bg-purple-600 hover:text-white text-purple-700 border border-purple-200'
                             : 'bg-krumly-cream hover:bg-krumly-red hover:text-white text-krumly-red border border-krumly-border'
                         }`}
-                        title={esAgotado ? 'Sin stock disponible' : 'Agregar al carrito'}
+                        title={esAgotado ? 'Sin stock disponible' : prod.esCombo ? 'Personalizar sabores y agregar' : 'Agregar al carrito'}
                       >
                         <Plus className="w-4 h-4 stroke-[3]" />
                       </button>
@@ -334,12 +407,37 @@ export const PosPage: React.FC = () => {
               cart.map((item) => {
                 const subtotal = item.producto.precioVenta * item.cantidad;
                 return (
-                  <div key={item.producto.id} className="pt-3 first:pt-0 space-y-2">
+                  <div key={item.idLinea} className="pt-3 first:pt-0 space-y-2">
                     <div className="flex justify-between items-start">
-                      <h4 className="font-bold text-xs text-krumly-chocolate leading-tight">
-                        {item.producto.nombre}
-                      </h4>
-                      <span className="font-extrabold text-xs text-krumly-chocolate">
+                      <div className="space-y-0.5">
+                        <div className="flex items-center space-x-1.5 flex-wrap">
+                          <h4 className="font-bold text-xs text-krumly-chocolate leading-tight">
+                            {item.producto.nombre}
+                          </h4>
+                          {item.producto.esCombo && (
+                            <span className="px-1.5 py-0.2 bg-purple-100 text-purple-800 text-[9px] font-bold rounded-md border border-purple-200">
+                              COMBO
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Desglose de sabores si es combo personalizado */}
+                        {item.galletasSeleccionadas && item.galletasSeleccionadas.length > 0 && (
+                          <div className="flex flex-wrap gap-1 pt-0.5">
+                            {item.galletasSeleccionadas.map((g, idx) => (
+                              <span
+                                key={idx}
+                                className="inline-flex items-center space-x-1 px-1.5 py-0.5 rounded-md bg-purple-50 text-purple-800 border border-purple-200/70 text-[9.5px] font-semibold"
+                              >
+                                <Cookie className="w-2.5 h-2.5 text-purple-600" />
+                                <span>{g.producto.nombre}</span>
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      <span className="font-extrabold text-xs text-krumly-chocolate shrink-0 pl-2">
                         ${subtotal.toFixed(2)}
                       </span>
                     </div>
@@ -349,7 +447,7 @@ export const PosPage: React.FC = () => {
                       <div className="flex items-center space-x-2 bg-krumly-cream/50 p-1 rounded-xl border border-krumly-border">
                         <button
                           type="button"
-                          onClick={() => cambiarCantidad(item.producto.id, -1)}
+                          onClick={() => cambiarCantidad(item.idLinea, -1)}
                           className="w-6 h-6 rounded-lg bg-white text-krumly-chocolate hover:text-krumly-red flex items-center justify-center font-bold text-xs shadow-2xs border border-krumly-border/60 cursor-pointer"
                         >
                           <Minus className="w-3 h-3" />
@@ -359,7 +457,7 @@ export const PosPage: React.FC = () => {
                         </span>
                         <button
                           type="button"
-                          onClick={() => cambiarCantidad(item.producto.id, 1)}
+                          onClick={() => cambiarCantidad(item.idLinea, 1)}
                           className="w-6 h-6 rounded-lg bg-white text-krumly-chocolate hover:text-krumly-red flex items-center justify-center font-bold text-xs shadow-2xs border border-krumly-border/60 cursor-pointer"
                         >
                           <Plus className="w-3 h-3" />
@@ -368,7 +466,7 @@ export const PosPage: React.FC = () => {
 
                       <button
                         type="button"
-                        onClick={() => eliminarDelCarrito(item.producto.id)}
+                        onClick={() => eliminarDelCarrito(item.idLinea)}
                         className="text-gray-300 hover:text-rose-600 text-xs font-semibold cursor-pointer"
                       >
                         Quitar
@@ -501,6 +599,16 @@ export const PosPage: React.FC = () => {
           metodoPagoInicial={metodoPago}
           onClose={() => setModalPagoAbierto(false)}
           onVentaCompletada={handleVentaCompletada}
+        />
+      )}
+
+      {/* Modal de Personalización de Galletas para Combos */}
+      {comboAConfigurar && (
+        <ModalPersonalizarCombo
+          combo={comboAConfigurar}
+          todosProductos={productos}
+          onClose={() => setComboAConfigurar(null)}
+          onConfirmar={handleConfirmarCombo}
         />
       )}
     </div>

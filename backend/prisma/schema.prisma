@@ -161,6 +161,8 @@ model Producto {
   costoDirectoTotal        Decimal   @default(0.00) @map("costo_directo_total") @db.Decimal(10, 2)
   precioVenta              Decimal   @map("precio_venta") @db.Decimal(10, 2)
   margenGananciaPorcentaje Decimal   @default(0.00) @map("margen_ganancia_porcentaje") @db.Decimal(5, 2)
+  esCombo                  Boolean   @default(false) @map("es_combo")
+  stockCongelador          Int       @default(0) @map("stock_congelador")
   stockActual              Int       @default(0) @map("stock_actual")
   stockMinimo              Int       @default(10) @map("stock_minimo")
   activo                   Boolean   @default(true)
@@ -173,8 +175,23 @@ model Producto {
   lotesProduccion    LoteProduccion[]
   mermas             Merma[]
   ventaDetalles      VentaDetalle[]
+  comboItems         ProductoComboItem[]       @relation("ComboPadre")
+  componenteDeCombos ProductoComboItem[]       @relation("ComboHijo")
 
   @@map("productos")
+}
+
+model ProductoComboItem {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  comboId    String   @map("combo_id") @db.Uuid
+  productoId String   @map("producto_id") @db.Uuid
+  cantidad   Int      @default(1)
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  combo    Producto @relation("ComboPadre", fields: [comboId], references: [id], onDelete: Cascade)
+  producto Producto @relation("ComboHijo", fields: [productoId], references: [id])
+
+  @@map("producto_combo_items")
 }
 
 model ProductoInsumoAdicional {
@@ -183,7 +200,7 @@ model ProductoInsumoAdicional {
   insumoId   String          @map("insumo_id") @db.Uuid
   cantidad   Decimal         @db.Decimal(10, 2)
   // produccion = rellenos/toppings internos (descuenta al producir el lote)
-  // despacho   = empaque + decoración final (descuenta al vender en POS)
+  // despacho   = empaque + decoración final (descuenta al hornear/empacar)
   tipoUso    TipoUsoInsumo   @default(produccion) @map("tipo_uso")
   createdAt  DateTime        @default(now()) @map("created_at") @db.Timestamp(6)
 
@@ -197,6 +214,7 @@ model LoteProduccion {
   id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   productoId        String   @map("producto_id") @db.Uuid
   recetaId          String?  @map("receta_id") @db.Uuid
+  tipoLote          String   @default("amasado") @map("tipo_lote")
   cantidadProducida Int      @map("cantidad_producida")
   fechaProduccion   DateTime @default(now()) @map("fecha_produccion") @db.Timestamp(6)
   notas             String?  @db.Text

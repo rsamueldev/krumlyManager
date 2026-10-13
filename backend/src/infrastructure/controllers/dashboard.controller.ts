@@ -1,4 +1,4 @@
-import { Controller, Get, UseGuards } from '@nestjs/common';
+import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { ObtenerDashboardMetricsUseCase } from '../../application/use-cases/dashboard/obtener-dashboard-metrics.use-case';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
@@ -10,7 +10,11 @@ export class DashboardController {
   ) {}
 
   @Get('metrics')
-  async getMetrics() {
-    return this.obtenerDashboardMetricsUseCase.execute();
+  async getMetrics(
+    @Query('periodo') periodo?: string,
+    @Query('desde') desde?: string,
+    @Query('hasta') hasta?: string,
+  ) {
+    return this.obtenerDashboardMetricsUseCase.execute(periodo, desde, hasta);
   }
 }

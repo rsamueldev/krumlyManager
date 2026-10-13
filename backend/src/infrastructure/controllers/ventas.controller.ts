@@ -26,6 +26,10 @@ class CrearVentaDto {
     productoId: string;
     cantidad: number;
     precioUnitario: number;
+    galletasSeleccionadas?: Array<{
+      productoId: string;
+      cantidad?: number;
+    }>;
   }>;
   pagos!: Array<{
     metodoPago: string;

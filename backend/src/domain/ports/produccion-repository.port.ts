@@ -20,6 +20,33 @@ export interface SimularProduccionResultado {
   consumoInsumos: ConsumoInsumoEstimado[];
 }
 
+export interface ConsumoCongeladorItem {
+  productoId: string;
+  nombreProducto: string;
+  cantidadRequerida: number;
+  stockDisponible: number;
+  faltante: number;
+  suficiente: boolean;
+}
+
+export interface SimularHorneadoResultado {
+  productoId: string;
+  nombreProducto: string;
+  cantidadAHornear: number;
+  esCombo: boolean;
+  puedoHornear: boolean;
+  consumoCongelador: ConsumoCongeladorItem[];
+  consumoEmpaque: ConsumoInsumoEstimado[];
+}
+
+export interface HornearLoteInput {
+  productoId: string;
+  cantidad: number;
+  usuarioId: string;
+  notas?: string;
+  galletasSeleccionadas?: Array<{ productoId: string; cantidad: number }>;
+}
+
 export interface ProduccionRepositoryPort {
   registrarLote(data: {
     productoId: string;
@@ -29,6 +56,14 @@ export interface ProduccionRepositoryPort {
   }): Promise<LoteProduccionEntity>;
 
   simularProduccion(productoId: string, cantidadAProducir: number): Promise<SimularProduccionResultado>;
+
+  hornearLote(data: HornearLoteInput): Promise<LoteProduccionEntity>;
+
+  simularHorneado(
+    productoId: string,
+    cantidad: number,
+    galletasSeleccionadas?: Array<{ productoId: string; cantidad: number }>,
+  ): Promise<SimularHorneadoResultado>;
 
   obtenerHistorialLotes(limit?: number): Promise<LoteProduccionEntity[]>;
 }

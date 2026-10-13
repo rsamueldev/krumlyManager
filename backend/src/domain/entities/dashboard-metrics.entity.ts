@@ -6,12 +6,21 @@ export interface TopProductoVendido {
   gananciaUsd: number;
 }
 
+export interface DesgloseProductoPeriodo {
+  productoId: string;
+  nombre: string;
+  esCombo: boolean;
+  cantidadVendida: number;
+  totalVentasUsd: number;
+}
+
 export interface AlertaStockBajo {
   tipo: 'producto' | 'insumo';
   id: string;
   nombre: string;
   stockActual: number;
   stockMinimo: number;
+  stockCongelador?: number;
   unidadMedida?: string;
 }
 
@@ -33,5 +42,9 @@ export class DashboardMetricsEntity {
     public readonly porcentajePuntoEquilibrioAlcanzado: number,
     public readonly topProductos: TopProductoVendido[],
     public readonly alertasStock: AlertaStockBajo[],
+    public readonly totalUnidadesVendidas: number = 0,
+    public readonly ticketPromedioUsd: number = 0,
+    public readonly desgloseProductos: DesgloseProductoPeriodo[] = [],
+    public readonly periodo: string = 'hoy',
   ) {}
 }

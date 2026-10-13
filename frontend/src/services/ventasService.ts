@@ -4,6 +4,10 @@ export interface VentaDetallePayload {
   productoId: string;
   cantidad: number;
   precioUnitario: number;
+  galletasSeleccionadas?: Array<{
+    productoId: string;
+    cantidad?: number;
+  }>;
 }
 
 export interface VentaPagoPayload {

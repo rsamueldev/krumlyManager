@@ -38,7 +38,7 @@ export const ProductosPage: React.FC = () => {
 
   const modalContainerRef = useRef<HTMLDivElement>(null);
 
-  const { productos, categorias, recetas, insumos, cargandoProductos: cargando, obtenerProductos, obtenerCategorias, obtenerRecetas, obtenerInsumos, agregarProductoLocal, actualizarProductoLocal, eliminarProductoLocal } = useData();
+  const { productos, categorias, recetas, insumos, cargandoProductos: cargando, obtenerProductos, obtenerCategorias, obtenerRecetas, obtenerInsumos, refrescarProductos, agregarProductoLocal, actualizarProductoLocal, eliminarProductoLocal } = useData();
 
   const [busqueda, setBusqueda] = useState('');
   const [filtroCategoria, setFiltroCategoria] = useState<string>('todas');
@@ -56,6 +56,9 @@ export const ProductosPage: React.FC = () => {
   const [precioVenta, setPrecioVenta] = useState<number>(2.5);
   const [stockActual, setStockActual] = useState<number>(25);
   const [stockMinimo, setStockMinimo] = useState<number>(10);
+  const [esCombo, setEsCombo] = useState<boolean>(false);
+  const [comboItems, setComboItems] = useState<Array<{ productoId: string; cantidad: number }>>([]);
+  const [stockCongelador, setStockCongelador] = useState<number>(0);
 
   // Indirect Costs & Insumos by Phase
   const [costoManoObra, setCostoManoObra] = useState<number>(0.10);
@@ -87,6 +90,9 @@ export const ProductosPage: React.FC = () => {
     setPrecioVenta(2.5);
     setStockActual(25);
     setStockMinimo(10);
+    setEsCombo(false);
+    setComboItems([]);
+    setStockCongelador(0);
     setCostoManoObra(0.10);
     setCostoDepreciacion(0.03);
     setPorcentajeDesperdicio(5);
@@ -106,6 +112,13 @@ export const ProductosPage: React.FC = () => {
     setPrecioVenta(producto.precioVenta);
     setStockActual(producto.stockActual);
     setStockMinimo(producto.stockMinimo);
+    setEsCombo(Boolean(producto.esCombo));
+    setStockCongelador(producto.stockCongelador || 0);
+    setComboItems(
+      producto.comboItems && producto.comboItems.length > 0
+        ? producto.comboItems.map((ci) => ({ productoId: ci.productoId, cantidad: ci.cantidad }))
+        : [],
+    );
     setCostoManoObra(producto.costoManoObra || 0);
     setCostoDepreciacion(producto.costoDepreciacion || 0);
     setPorcentajeDesperdicio(producto.porcentajeDesperdicio ?? 5);
@@ -127,18 +140,32 @@ export const ProductosPage: React.FC = () => {
   }, [recetas, recetaId]);
 
   const costoMasaCalculado = useMemo(() => {
-    if (!recetaSeleccionada) return 0;
+    if (esCombo || !recetaSeleccionada) return 0;
     return Number((pesoMasaGramos * recetaSeleccionada.costoPorGramo).toFixed(4));
-  }, [pesoMasaGramos, recetaSeleccionada]);
+  }, [esCombo, pesoMasaGramos, recetaSeleccionada]);
 
   const costoToppingsCalculado = useMemo(() => {
-    // Rellenos (produccion) cost
+    if (esCombo) return 0;
     return rellenosProduccion.reduce((acc, curr) => {
       const insumo = insumos.find((i) => i.id === curr.insumoId) || curr.insumo;
       const costoUnitario = insumo ? insumo.costoUnitario : 0;
       return acc + curr.cantidad * costoUnitario;
     }, 0);
-  }, [rellenosProduccion, insumos]);
+  }, [esCombo, rellenosProduccion, insumos]);
+
+  const costoGalletasComboCalculado = useMemo(() => {
+    if (!esCombo) return 0;
+    return comboItems.reduce((acc, curr) => {
+      const prodHijo = productos.find((p) => p.id === curr.productoId);
+      if (!prodHijo) return acc;
+      // Deducimos el empaque individual de la galleta para no duplicarlo con la caja del combo
+      const costoSinEmpaque = Math.max(
+        0,
+        Number(prodHijo.costoDirectoTotal || 0) - Number(prodHijo.costoEmpaque || 0),
+      );
+      return acc + costoSinEmpaque * curr.cantidad;
+    }, 0);
+  }, [esCombo, comboItems, productos]);
 
   // costoEmpaque = AUTO-calculated from empaqueDespacho insumos (read-only in Step 3)
   const costoEmpaqueCalculado = useMemo(() => {
@@ -150,6 +177,14 @@ export const ProductosPage: React.FC = () => {
   }, [empaqueDespacho, insumos]);
 
   const subtotalDirectoSinDesperdicio = useMemo(() => {
+    if (esCombo) {
+      return (
+        costoGalletasComboCalculado +
+        costoEmpaqueCalculado +
+        costoManoObra +
+        costoDepreciacion
+      );
+    }
     return (
       costoMasaCalculado +
       costoToppingsCalculado +
@@ -157,7 +192,7 @@ export const ProductosPage: React.FC = () => {
       costoManoObra +
       costoDepreciacion
     );
-  }, [costoMasaCalculado, costoToppingsCalculado, costoEmpaqueCalculado, costoManoObra, costoDepreciacion]);
+  }, [esCombo, costoGalletasComboCalculado, costoMasaCalculado, costoToppingsCalculado, costoEmpaqueCalculado, costoManoObra, costoDepreciacion]);
 
   const costoDirectoTotalCalculado = useMemo(() => {
     const factorDesperdicio = 1 + Math.max(0, porcentajeDesperdicio) / 100;
@@ -172,6 +207,30 @@ export const ProductosPage: React.FC = () => {
   const esVentaEnPerdida = useMemo(() => {
     return precioVenta <= costoDirectoTotalCalculado;
   }, [precioVenta, costoDirectoTotalCalculado]);
+
+  // ── Handlers Combo Items ─────────────────────────────────────────────────
+  const handleAgregarGalletaCombo = () => {
+    const galletaDisponible = productos.find((p) => !p.esCombo && p.activo) || productos[0];
+    if (galletaDisponible) {
+      setComboItems([...comboItems, { productoId: galletaDisponible.id, cantidad: 1 }]);
+    }
+  };
+
+  const handleCambiarGalletaCombo = (index: number, productoId: string) => {
+    const nuevos = [...comboItems];
+    nuevos[index] = { ...nuevos[index], productoId };
+    setComboItems(nuevos);
+  };
+
+  const handleCambiarCantidadGalletaCombo = (index: number, cantidad: number) => {
+    const nuevos = [...comboItems];
+    nuevos[index] = { ...nuevos[index], cantidad: Math.max(1, cantidad) };
+    setComboItems(nuevos);
+  };
+
+  const handleEliminarGalletaCombo = (index: number) => {
+    setComboItems(comboItems.filter((_, i) => i !== index));
+  };
 
   // ── Handlers Rellenos (Fase Produccion) ──────────────────────────────────
   const handleAgregarRelleno = () => {
@@ -247,7 +306,7 @@ export const ProductosPage: React.FC = () => {
         setErrorModal('Ingresa el nombre del producto para continuar.');
         return;
       }
-      if (pesoMasaGramos <= 0) {
+      if (!esCombo && pesoMasaGramos <= 0) {
         setErrorModal('El peso de la masa debe ser mayor a 0 gramos.');
         return;
       }
@@ -292,15 +351,18 @@ export const ProductosPage: React.FC = () => {
       const payload: Partial<Producto> = {
         nombre: nombre.trim(),
         categoriaId: categoriaId || undefined,
-        recetaId: recetaId || undefined,
-        pesoMasaGramos,
+        recetaId: esCombo ? undefined : (recetaId || undefined),
+        pesoMasaGramos: esCombo ? 0 : pesoMasaGramos,
         costoManoObra,
         costoDepreciacion,
         porcentajeDesperdicio,
         precioVenta,
         stockActual,
         stockMinimo,
+        esCombo,
+        stockCongelador: esCombo ? 0 : stockCongelador,
         insumosAdicionales: todosInsumos,
+        comboItems: esCombo ? comboItems.filter((ci) => ci.productoId && ci.cantidad > 0) : undefined,
       };
 
       if (editandoProductoId) {
@@ -437,7 +499,7 @@ export const ProductosPage: React.FC = () => {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {productosFiltrados.map((prod) => {
-            const esStockBajo = prod.stockActual <= prod.stockMinimo;
+            const esStockBajo = !prod.esCombo && (prod.stockCongelador || 0) <= prod.stockMinimo;
             const precioBs = convertirUSDToVES(prod.precioVenta);
             const esPerdida = prod.precioVenta <= prod.costoDirectoTotal;
 
@@ -451,23 +513,49 @@ export const ProductosPage: React.FC = () => {
                 <div className="space-y-3">
                   {/* Icon & Badges Header */}
                   <div className="flex justify-between items-start">
-                    <div className="w-12 h-12 rounded-2xl bg-krumly-cream border border-krumly-border flex items-center justify-center text-krumly-red shrink-0 shadow-2xs">
-                      <Cookie className="w-6 h-6" />
+                    <div className={`w-12 h-12 rounded-2xl border flex items-center justify-center shrink-0 shadow-2xs ${
+                      prod.esCombo
+                        ? 'bg-purple-50 border-purple-200 text-purple-700'
+                        : 'bg-krumly-cream border-krumly-border text-krumly-red'
+                    }`}>
+                      {prod.esCombo ? <Package className="w-6 h-6" /> : <Cookie className="w-6 h-6" />}
                     </div>
 
                     <div className="flex flex-col items-end space-y-1">
-                      {prod.categoria && (
+                      {prod.esCombo ? (
+                        <span className="px-2.5 py-0.5 rounded-full bg-purple-100 border border-purple-200 text-purple-800 font-bold text-[10px]">
+                          🎁 COMBO / CAJA
+                        </span>
+                      ) : prod.categoria ? (
                         <span className="px-2.5 py-0.5 rounded-full bg-amber-100/70 border border-amber-200 text-amber-800 font-bold text-[10px]">
                           {prod.categoria.nombre}
                         </span>
+                      ) : null}
+
+                      {prod.esCombo ? (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-700">
+                          📦 Listas: {prod.stockActual} cajas
+                        </span>
+                      ) : (
+                        <div className="flex flex-col items-end gap-0.5">
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                              esStockBajo
+                                ? 'bg-amber-100 text-amber-800 border-amber-300'
+                                : 'bg-blue-50 text-blue-700 border-blue-200'
+                            }`}
+                          >
+                            🧊 Freezer: {prod.stockCongelador || 0} masas {esStockBajo ? '(Bajo)' : ''}
+                          </span>
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                              prod.stockActual <= 0 ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'
+                            }`}
+                          >
+                            🍪 Vitrina: {prod.stockActual} galletas
+                          </span>
+                        </div>
                       )}
-                      <span
-                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                          esStockBajo ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'
-                        }`}
-                      >
-                        Stock: {prod.stockActual} ud
-                      </span>
                     </div>
                   </div>
 
@@ -476,16 +564,47 @@ export const ProductosPage: React.FC = () => {
                     <h3 className="font-heading font-bold text-base text-krumly-chocolate leading-tight">
                       {prod.nombre}
                     </h3>
-                    {prod.receta && (
-                      <p className="text-[11px] text-gray-500 font-medium mt-0.5 flex items-center space-x-1">
-                        <ChefHat className="w-3.5 h-3.5 text-krumly-red shrink-0" />
-                        <span>
-                          {prod.receta.nombre} ({prod.pesoMasaGramos}g masa)
+
+                    {/* Si es Combo, mostrar lista de galletas que contiene */}
+                    {prod.esCombo ? (
+                      <div className="mt-2 space-y-1">
+                        <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">
+                          Galletas incluidas en la caja:
                         </span>
-                      </p>
+                        <div className="flex flex-wrap gap-1">
+                          {prod.comboItems && prod.comboItems.length > 0 ? (
+                            prod.comboItems.map((ci) => {
+                              const prodHijo = productos.find((p) => p.id === ci.productoId) || ci.producto;
+                              return (
+                                <span
+                                  key={ci.id || ci.productoId}
+                                  className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-purple-50 border border-purple-200 text-purple-900"
+                                >
+                                  <Cookie className="w-3 h-3 text-purple-600 shrink-0" />
+                                  <span>
+                                    {ci.cantidad}x {prodHijo?.nombre || 'Galleta'}
+                                  </span>
+                                </span>
+                              );
+                            })
+                          ) : (
+                            <span className="text-[11px] text-gray-400 italic">Sin galletas asignadas</span>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      prod.receta && (
+                        <p className="text-[11px] text-gray-500 font-medium mt-0.5 flex items-center space-x-1">
+                          <ChefHat className="w-3.5 h-3.5 text-krumly-red shrink-0" />
+                          <span>
+                            {prod.receta.nombre} ({prod.pesoMasaGramos}g masa)
+                          </span>
+                        </p>
+                      )
                     )}
+
                     {prod.insumosAdicionales && prod.insumosAdicionales.length > 0 && (
-                      <div className="mt-1 flex flex-wrap gap-1">
+                      <div className="mt-2 flex flex-wrap gap-1">
                         {prod.insumosAdicionales.map((t) => {
                           const isDespacho = t.tipoUso === 'despacho';
                           const unidad = t.insumo?.unidadMedida === 'gramos' ? 'g' : (t.insumo?.unidadMedida || (isDespacho ? 'ud' : 'g'));
@@ -515,10 +634,27 @@ export const ProductosPage: React.FC = () => {
 
                   {/* Ficha Costos Card */}
                   <div className="bg-[#FFF9F5] border border-krumly-border rounded-xl p-3 space-y-1 text-xs">
-                    <div className="flex justify-between items-center text-gray-600">
-                      <span>Costo Masa:</span>
-                      <span className="font-semibold text-gray-700">${prod.costoMasaUnidad.toFixed(3)} USD</span>
-                    </div>
+                    {prod.esCombo ? (
+                      <div className="flex justify-between items-center text-gray-600">
+                        <span>Costo Galletas Base:</span>
+                        <span className="font-semibold text-gray-700">
+                          ${(
+                            (prod.comboItems || []).reduce((acc, ci) => {
+                              const h = productos.find((p) => p.id === ci.productoId) || ci.producto;
+                              const costoSinEmp = h
+                                ? Math.max(0, (h.costoDirectoTotal || 0) - (h.costoEmpaque || 0))
+                                : 0;
+                              return acc + costoSinEmp * ci.cantidad;
+                            }, 0)
+                          ).toFixed(2)} USD
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="flex justify-between items-center text-gray-600">
+                        <span>Costo Masa:</span>
+                        <span className="font-semibold text-gray-700">${prod.costoMasaUnidad.toFixed(3)} USD</span>
+                      </div>
+                    )}
 
                     <div className="flex justify-between items-center text-gray-600">
                       <span>Costo Directo Total:</span>
@@ -630,14 +766,14 @@ export const ProductosPage: React.FC = () => {
                 ) : (
                   <span className="text-xs font-extrabold">1</span>
                 )}
-                <span className="text-[11px] truncate">Info & Masa</span>
+                <span className="text-[11px] truncate">{esCombo ? 'Info & Tipo' : 'Info & Masa'}</span>
               </button>
 
               {/* Paso 2 Badge */}
               <button
                 type="button"
                 onClick={() => {
-                  if (nombre.trim() && pesoMasaGramos > 0) setPasoActual(2);
+                  if (nombre.trim() && (esCombo || pesoMasaGramos > 0)) setPasoActual(2);
                 }}
                 className={`p-2.5 rounded-xl border text-center cursor-pointer transition-all flex items-center justify-center space-x-2 ${
                   pasoActual === 2
@@ -652,14 +788,14 @@ export const ProductosPage: React.FC = () => {
                 ) : (
                   <span className="text-xs font-extrabold">2</span>
                 )}
-                <span className="text-[11px] truncate">Toppings</span>
+                <span className="text-[11px] truncate">{esCombo ? 'Galletas & Caja' : 'Toppings'}</span>
               </button>
 
               {/* Paso 3 Badge */}
               <button
                 type="button"
                 onClick={() => {
-                  if (nombre.trim() && pesoMasaGramos > 0) setPasoActual(3);
+                  if (nombre.trim() && (esCombo || pesoMasaGramos > 0)) setPasoActual(3);
                 }}
                 className={`p-2.5 rounded-xl border text-center cursor-pointer transition-all flex items-center justify-center space-x-2 ${
                   pasoActual === 3
@@ -683,242 +819,503 @@ export const ProductosPage: React.FC = () => {
             {/* CONTENEDOR PRINCIPAL SIN FORM ELEMENT */}
             <div className="space-y-4">
               
-              {/* PASO 1: INFORMACIÓN GENERAL Y MASA BASE */}
+              {/* PASO 1: INFORMACIÓN GENERAL / SELECCIÓN INDIVIDUAL O COMBO */}
               {pasoActual === 1 && (
                 <div className="space-y-4 animate-in fade-in duration-150">
+                  {/* Selector de Tipo: Individual vs Combo */}
+                  <div className="bg-krumly-cream/50 p-1 rounded-xl border border-krumly-border grid grid-cols-2 gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setEsCombo(false)}
+                      className={`py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center space-x-2 cursor-pointer ${
+                        !esCombo
+                          ? 'bg-white text-krumly-red shadow-xs border border-krumly-border'
+                          : 'text-gray-500 hover:text-krumly-chocolate'
+                      }`}
+                    >
+                      <Cookie className="w-4 h-4" />
+                      <span>🍪 Galleta Individual</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEsCombo(true)}
+                      className={`py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center space-x-2 cursor-pointer ${
+                        esCombo
+                          ? 'bg-white text-purple-700 shadow-xs border border-purple-200'
+                          : 'text-gray-500 hover:text-krumly-chocolate'
+                      }`}
+                    >
+                      <Package className="w-4 h-4" />
+                      <span>🎁 Combo / Caja (Double Krum, etc.)</span>
+                    </button>
+                  </div>
+
                   <div className="bg-[#FFF9F5] p-3 rounded-xl border border-krumly-border">
                     <h4 className="font-heading font-bold text-xs uppercase tracking-wider text-krumly-chocolate">
-                      Paso 1: Información General y Masa Base
+                      {esCombo ? 'Paso 1: Información del Combo / Caja' : 'Paso 1: Información General y Masa Base'}
                     </h4>
                     <p className="text-[11px] text-gray-500 mt-0.5">
-                      Define el nombre comercial de la galleta y asigna la mezcla de masa base de cocina.
+                      {esCombo
+                        ? 'Define el nombre comercial de la caja o pack de venta rápida (ej: "Double Krum", "Triple Krum"). En el Paso 2 asignarás qué galletas incluye y su caja de empaque.'
+                        : 'Define el nombre comercial de la galleta y asigna la mezcla de masa base de cocina.'}
                     </p>
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-gray-700 mb-1">Nombre del Producto</label>
+                    <label className="block text-xs font-bold text-gray-700 mb-1">
+                      {esCombo ? 'Nombre del Combo / Caja' : 'Nombre del Producto'}
+                    </label>
                     <input
                       type="text"
                       value={nombre}
                       onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); }}
                       onChange={(e) => setNombre(e.target.value)}
-                      placeholder="Ej. Galleta Tradicional Choco-Vainilla 120g"
+                      placeholder={esCombo ? 'Ej. Double Krum (1 Pirulín + 1 Clásica)' : 'Ej. Galleta Tradicional Choco-Vainilla 120g'}
                       className="w-full px-3.5 py-2.5 bg-krumly-cream/30 border border-krumly-border rounded-xl text-xs font-bold text-krumly-chocolate focus:ring-2 focus:ring-krumly-red focus:outline-none"
                     />
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-bold text-gray-700 mb-1">Categoría de Producto</label>
-                      <select
-                        value={categoriaId}
-                        onChange={(e) => setCategoriaId(e.target.value)}
-                        className="w-full px-3 py-2.5 bg-krumly-cream/30 border border-krumly-border rounded-xl text-xs font-bold text-krumly-chocolate focus:ring-2 focus:ring-krumly-red focus:outline-none"
-                      >
-                        <option value="">-- Sin Categoría --</option>
-                        {categorias.map((cat) => (
-                          <option key={cat.id} value={cat.id}>
-                            {cat.nombre}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-bold text-gray-700 mb-1">Receta Base de Masa</label>
-                      <select
-                        value={recetaId}
-                        onChange={(e) => setRecetaId(e.target.value)}
-                        className="w-full px-3 py-2.5 bg-krumly-cream/30 border border-krumly-border rounded-xl text-xs font-bold text-krumly-chocolate focus:ring-2 focus:ring-krumly-red focus:outline-none"
-                      >
-                        <option value="">-- Seleccionar Receta Base --</option>
-                        {recetas.map((r) => (
-                          <option key={r.id} value={r.id}>
-                            {r.nombre} (${r.costoPorGramo.toFixed(4)}/g)
-                          </option>
-                        ))}
-                      </select>
-                    </div>
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-gray-700 mb-1">
-                      Masa Asignada por Galleta (Gramos)
-                    </label>
-                    <input
-                      type="number"
-                      min="1"
-                      value={pesoMasaGramos || ''}
-                      onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); }}
-                      onChange={(e) => setPesoMasaGramos(e.target.value === '' ? 0 : parseFloat(e.target.value) || 0)}
-                      className="w-full px-3.5 py-2.5 bg-krumly-cream/30 border border-krumly-border rounded-xl text-xs font-bold text-krumly-chocolate focus:ring-2 focus:ring-krumly-red focus:outline-none"
-                    />
+                    <label className="block text-xs font-bold text-gray-700 mb-1">Categoría de Producto</label>
+                    <select
+                      value={categoriaId}
+                      onChange={(e) => setCategoriaId(e.target.value)}
+                      className="w-full px-3 py-2.5 bg-krumly-cream/30 border border-krumly-border rounded-xl text-xs font-bold text-krumly-chocolate focus:ring-2 focus:ring-krumly-red focus:outline-none"
+                    >
+                      <option value="">-- Sin Categoría --</option>
+                      {categorias.map((cat) => (
+                        <option key={cat.id} value={cat.id}>
+                          {cat.nombre}
+                        </option>
+                      ))}
+                    </select>
                   </div>
 
-                  {/* Resumen Costo Masa Paso 1 */}
-                  <div className="bg-amber-50/60 p-3 rounded-xl border border-amber-200/70 flex justify-between items-center">
-                    <span className="text-xs font-bold text-amber-900">Costo de Masa por Unidad:</span>
-                    <span className="font-bold text-xs text-krumly-red bg-white px-2.5 py-1 rounded-lg border border-amber-200">
-                      ${costoMasaCalculado.toFixed(4)} USD
-                    </span>
-                  </div>
+                  {!esCombo ? (
+                    <>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-bold text-gray-700 mb-1">Receta Base de Masa</label>
+                          <select
+                            value={recetaId}
+                            onChange={(e) => setRecetaId(e.target.value)}
+                            className="w-full px-3 py-2.5 bg-krumly-cream/30 border border-krumly-border rounded-xl text-xs font-bold text-krumly-chocolate focus:ring-2 focus:ring-krumly-red focus:outline-none"
+                          >
+                            <option value="">-- Seleccionar Receta Base --</option>
+                            {recetas.map((r) => (
+                              <option key={r.id} value={r.id}>
+                                {r.nombre} (${r.costoPorGramo.toFixed(4)}/g)
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-bold text-gray-700 mb-1">
+                            Masa Asignada por Galleta (Gramos)
+                          </label>
+                          <input
+                            type="number"
+                            min="1"
+                            value={pesoMasaGramos || ''}
+                            onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); }}
+                            onChange={(e) => setPesoMasaGramos(e.target.value === '' ? 0 : parseFloat(e.target.value) || 0)}
+                            className="w-full px-3.5 py-2.5 bg-krumly-cream/30 border border-krumly-border rounded-xl text-xs font-bold text-krumly-chocolate focus:ring-2 focus:ring-krumly-red focus:outline-none"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Resumen Costo Masa Paso 1 */}
+                      <div className="bg-amber-50/60 p-3 rounded-xl border border-amber-200/70 flex justify-between items-center">
+                        <span className="text-xs font-bold text-amber-900">Costo de Masa por Unidad:</span>
+                        <span className="font-bold text-xs text-krumly-red bg-white px-2.5 py-1 rounded-lg border border-amber-200">
+                          ${costoMasaCalculado.toFixed(4)} USD
+                        </span>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="bg-purple-50/80 p-3.5 rounded-xl border border-purple-200 text-purple-900 text-xs space-y-1">
+                      <div className="flex items-center space-x-1.5 font-bold">
+                        <Sparkles className="w-4 h-4 text-purple-600" />
+                        <span>Combo de Galletas Pre-empaquetadas</span>
+                      </div>
+                      <p className="text-[11px] text-purple-700">
+                        Este producto no requiere amasar una receta propia, sino que en el siguiente paso seleccionarás las galletas individuales del catálogo que componen la caja y su empaque de despacho.
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
 
-              {/* PASO 2: INSUMOS ADICIONALES — Dos Fases */}
+              {/* PASO 2: INSUMOS ADICIONALES (SI INDIVIDUAL) O GALLETAS + EMPAQUE (SI COMBO) */}
               {pasoActual === 2 && (
                 <div className="space-y-5 animate-in fade-in duration-150">
-
-                  {/* ── SECCIÓN A: Rellenos e Inclusiones (Fase Producción) ── */}
-                  <div className="space-y-3">
-                    <div className="bg-amber-50 p-3 rounded-xl border border-amber-200 flex justify-between items-center">
-                      <div>
-                        <h4 className="font-heading font-bold text-xs uppercase tracking-wider text-amber-900 flex items-center space-x-1.5">
-                          <span>🍪</span>
-                          <span>Rellenos e Inclusiones (Fase de Producción)</span>
-                        </h4>
-                        <p className="text-[11px] text-amber-700 mt-0.5">
-                          Van dentro de la masa antes de congelar. Se descuentan al hornear el lote.
-                        </p>
-                      </div>
-                      <span className="text-[11px] text-amber-700 font-bold shrink-0 ml-2">
-                        {rellenosProduccion.length} ítem(s)
-                      </span>
-                    </div>
-
-                    <div className="border border-amber-200 rounded-xl overflow-hidden shadow-2xs">
-                      <div className="bg-amber-50 px-3 py-2 grid grid-cols-12 gap-2 text-[10px] font-bold uppercase tracking-wider text-amber-800 border-b border-amber-200">
-                        <div className="col-span-6">Insumo (Relleno / Topping)</div>
-                        <div className="col-span-3">Cantidad (g/ml/ud)</div>
-                        <div className="col-span-2 text-right">Costo</div>
-                        <div className="col-span-1"></div>
-                      </div>
-                      <div className="divide-y divide-amber-100 bg-white">
-                        {rellenosProduccion.length === 0 ? (
-                          <div className="p-5 text-center text-xs text-gray-400 font-medium">
-                            Sin rellenos. Si tu galleta no lleva Nutella, chispas u otros rellenos internos, está bien dejarlo vacío.
+                  {esCombo ? (
+                    /* ── VISTA PASO 2 PARA COMBOS ── */
+                    <>
+                      {/* Sección A: Galletas Incluidas en el Combo */}
+                      <div className="space-y-3">
+                        <div className="bg-purple-50 p-3 rounded-xl border border-purple-200 flex justify-between items-center">
+                          <div>
+                            <h4 className="font-heading font-bold text-xs uppercase tracking-wider text-purple-900 flex items-center space-x-1.5">
+                              <span>🍪</span>
+                              <span>Galletas Incluidas en este Combo / Caja</span>
+                            </h4>
+                            <p className="text-[11px] text-purple-700 mt-0.5">
+                              Selecciona las galletas individuales de tu menú que vendrán dentro de la caja.
+                            </p>
                           </div>
-                        ) : (
-                          rellenosProduccion.map((top, idx) => {
-                            const targetInsumo = insumos.find((i) => i.id === top.insumoId) || top.insumo;
-                            const subtotal = Number((top.cantidad * (targetInsumo?.costoUnitario || 0)).toFixed(3));
-                            return (
-                              <div key={idx} className="px-3 py-2 grid grid-cols-12 gap-2 items-center">
-                                <div className="col-span-6">
-                                  <select
-                                    value={top.insumoId}
-                                    onChange={(e) => handleCambiarRellenoInsumo(idx, e.target.value)}
-                                    className="w-full px-2.5 py-1.5 bg-white border border-amber-200 rounded-lg text-xs font-semibold text-krumly-chocolate focus:ring-2 focus:ring-amber-400 focus:outline-none"
-                                  >
-                                    {insumos.map((ins) => (
-                                      <option key={ins.id} value={ins.id}>
-                                        {ins.nombre} (${ins.costoUnitario.toFixed(4)}/{ins.unidadMedida === 'gramos' ? 'g' : ins.unidadMedida})
-                                      </option>
-                                    ))}
-                                  </select>
-                                </div>
-                                <div className="col-span-3">
-                                  <input type="number" min="0" value={top.cantidad || ''}
-                                    onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); }}
-                                    onChange={(e) => handleCambiarRellenoCantidad(idx, e.target.value === '' ? 0 : parseFloat(e.target.value) || 0)}
-                                    className="w-full px-2 py-1.5 bg-white border border-amber-200 rounded-lg text-xs font-bold text-center text-krumly-chocolate focus:ring-2 focus:ring-amber-400 focus:outline-none"
-                                  />
-                                </div>
-                                <div className="col-span-2 text-right font-bold text-xs text-krumly-chocolate">${subtotal.toFixed(3)}</div>
-                                <div className="col-span-1 flex justify-center">
-                                  <button type="button" onClick={() => handleEliminarRelleno(idx)} className="p-1 text-gray-400 hover:text-red-500 rounded-lg transition-colors cursor-pointer">
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
-                                </div>
-                              </div>
-                            );
-                          })
-                        )}
-                      </div>
-                    </div>
+                          <span className="text-[11px] text-purple-700 font-bold shrink-0 ml-2">
+                            {comboItems.length} ítem(s)
+                          </span>
+                        </div>
 
-                    <button type="button" onClick={handleAgregarRelleno}
-                      className="inline-flex items-center space-x-1.5 border border-amber-500 text-amber-700 hover:bg-amber-50 font-bold px-3 py-2 rounded-xl text-xs transition-colors cursor-pointer shadow-2xs">
-                      <Plus className="w-3.5 h-3.5 stroke-[3]" />
-                      <span>Agregar Relleno / Topping Interno</span>
-                    </button>
-                  </div>
-
-                  {/* ── SECCIÓN B: Empaque y Decoración Final (Fase Despacho) ── */}
-                  <div className="space-y-3">
-                    <div className="bg-blue-50 p-3 rounded-xl border border-blue-200 flex justify-between items-center">
-                      <div>
-                        <h4 className="font-heading font-bold text-xs uppercase tracking-wider text-blue-900 flex items-center space-x-1.5">
-                          <span>📦</span>
-                          <span>Empaque y Decoración Final (Fase de Despacho)</span>
-                        </h4>
-                        <p className="text-[11px] text-blue-700 mt-0.5">
-                          Caja, papel, sticker, drizzle por encima. Se descuentan automáticamente al vender en el POS.
-                          Usa fracciones (ej: <strong>0.5</strong> caja si la caja es para 2 galletas).
-                        </p>
-                      </div>
-                      <span className="text-[11px] text-blue-700 font-bold shrink-0 ml-2">
-                        {empaqueDespacho.length} ítem(s)
-                      </span>
-                    </div>
-
-                    <div className="border border-blue-200 rounded-xl overflow-hidden shadow-2xs">
-                      <div className="bg-blue-50 px-3 py-2 grid grid-cols-12 gap-2 text-[10px] font-bold uppercase tracking-wider text-blue-800 border-b border-blue-200">
-                        <div className="col-span-6">Insumo (Empaque / Decoración)</div>
-                        <div className="col-span-3">Cantidad por Galleta</div>
-                        <div className="col-span-2 text-right">Costo</div>
-                        <div className="col-span-1"></div>
-                      </div>
-                      <div className="divide-y divide-blue-100 bg-white">
-                        {empaqueDespacho.length === 0 ? (
-                          <div className="p-5 text-center text-xs text-gray-400 font-medium">
-                            Sin empaque configurado. Agrega Caja, Papel, Sticker, etc. y usa 0.5 si la caja es para 2 galletas.
+                        <div className="border border-purple-200 rounded-xl overflow-hidden shadow-2xs">
+                          <div className="bg-purple-50 px-3 py-2 grid grid-cols-12 gap-2 text-[10px] font-bold uppercase tracking-wider text-purple-800 border-b border-purple-200">
+                            <div className="col-span-6">Galleta Individual</div>
+                            <div className="col-span-3">Cantidad</div>
+                            <div className="col-span-2 text-right">Costo Directo</div>
+                            <div className="col-span-1"></div>
                           </div>
-                        ) : (
-                          empaqueDespacho.map((top, idx) => {
-                            const targetInsumo = insumos.find((i) => i.id === top.insumoId) || top.insumo;
-                            const subtotal = Number((top.cantidad * (targetInsumo?.costoUnitario || 0)).toFixed(3));
-                            return (
-                              <div key={idx} className="px-3 py-2 grid grid-cols-12 gap-2 items-center">
-                                <div className="col-span-6">
-                                  <select
-                                    value={top.insumoId}
-                                    onChange={(e) => handleCambiarEmpaqueInsumo(idx, e.target.value)}
-                                    className="w-full px-2.5 py-1.5 bg-white border border-blue-200 rounded-lg text-xs font-semibold text-krumly-chocolate focus:ring-2 focus:ring-blue-400 focus:outline-none"
-                                  >
-                                    {insumos.map((ins) => (
-                                      <option key={ins.id} value={ins.id}>
-                                        {ins.nombre} (${ins.costoUnitario.toFixed(4)}/{ins.unidadMedida === 'gramos' ? 'g' : ins.unidadMedida})
-                                      </option>
-                                    ))}
-                                  </select>
-                                </div>
-                                <div className="col-span-3">
-                                  <input type="number" min="0" step="0.1" value={top.cantidad || ''}
-                                    onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); }}
-                                    onChange={(e) => handleCambiarEmpaqueCantidad(idx, e.target.value === '' ? 0 : parseFloat(e.target.value) || 0)}
-                                    className="w-full px-2 py-1.5 bg-white border border-blue-200 rounded-lg text-xs font-bold text-center text-krumly-chocolate focus:ring-2 focus:ring-blue-400 focus:outline-none"
-                                  />
-                                </div>
-                                <div className="col-span-2 text-right font-bold text-xs text-blue-800">${subtotal.toFixed(3)}</div>
-                                <div className="col-span-1 flex justify-center">
-                                  <button type="button" onClick={() => handleEliminarEmpaque(idx)} className="p-1 text-gray-400 hover:text-red-500 rounded-lg transition-colors cursor-pointer">
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
-                                </div>
+                          <div className="divide-y divide-purple-100 bg-white">
+                            {comboItems.length === 0 ? (
+                              <div className="p-5 text-center text-xs text-gray-400 font-medium">
+                                No has agregado galletas a esta caja. Haz clic en "+ Agregar Galleta a la Caja" para incluir galletas (ej: 1 Pirulín, 1 Clásica).
                               </div>
-                            );
-                          })
-                        )}
-                      </div>
-                    </div>
+                            ) : (
+                              comboItems.map((ci, idx) => {
+                                const prodHijo = productos.find((p) => p.id === ci.productoId);
+                                const costoUnit = prodHijo
+                                  ? Math.max(0, Number(prodHijo.costoDirectoTotal || 0) - Number(prodHijo.costoEmpaque || 0))
+                                  : 0;
+                                const subtotal = Number((ci.cantidad * costoUnit).toFixed(2));
+                                return (
+                                  <div key={idx} className="px-3 py-2 grid grid-cols-12 gap-2 items-center">
+                                    <div className="col-span-6">
+                                      <select
+                                        value={ci.productoId}
+                                        onChange={(e) => handleCambiarGalletaCombo(idx, e.target.value)}
+                                        className="w-full px-2.5 py-1.5 bg-white border border-purple-200 rounded-lg text-xs font-semibold text-krumly-chocolate focus:ring-2 focus:ring-purple-400 focus:outline-none"
+                                      >
+                                        {productos
+                                          .filter((p) => !p.esCombo && p.id !== editandoProductoId)
+                                          .map((p) => {
+                                            const costoSinEmp = Math.max(0, Number(p.costoDirectoTotal || 0) - Number(p.costoEmpaque || 0));
+                                            return (
+                                              <option key={p.id} value={p.id}>
+                                                {p.nombre} (${costoSinEmp.toFixed(2)} elaboración)
+                                              </option>
+                                            );
+                                          })}
+                                      </select>
+                                    </div>
+                                    <div className="col-span-3">
+                                      <input
+                                        type="number"
+                                        min="1"
+                                        value={ci.cantidad || ''}
+                                        onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); }}
+                                        onChange={(e) => handleCambiarCantidadGalletaCombo(idx, parseInt(e.target.value, 10) || 1)}
+                                        className="w-full px-2 py-1.5 bg-white border border-purple-200 rounded-lg text-xs font-bold text-center text-krumly-chocolate focus:ring-2 focus:ring-purple-400 focus:outline-none"
+                                      />
+                                    </div>
+                                    <div className="col-span-2 text-right font-bold text-xs text-purple-900">
+                                      ${subtotal.toFixed(2)}
+                                    </div>
+                                    <div className="col-span-1 flex justify-center">
+                                      <button
+                                        type="button"
+                                        onClick={() => handleEliminarGalletaCombo(idx)}
+                                        className="p-1 text-gray-400 hover:text-red-500 rounded-lg transition-colors cursor-pointer"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                );
+                              })
+                            )}
+                          </div>
+                        </div>
 
-                    <button type="button" onClick={handleAgregarEmpaque}
-                      className="inline-flex items-center space-x-1.5 border border-blue-400 text-blue-700 hover:bg-blue-50 font-bold px-3 py-2 rounded-xl text-xs transition-colors cursor-pointer shadow-2xs">
-                      <Plus className="w-3.5 h-3.5 stroke-[3]" />
-                      <span>Agregar Empaque / Decoración Final</span>
-                    </button>
-                  </div>
+                        <button
+                          type="button"
+                          onClick={handleAgregarGalletaCombo}
+                          className="inline-flex items-center space-x-1.5 border border-purple-500 text-purple-700 hover:bg-purple-50 font-bold px-3 py-2 rounded-xl text-xs transition-colors cursor-pointer shadow-2xs"
+                        >
+                          <Plus className="w-3.5 h-3.5 stroke-[3]" />
+                          <span>Agregar Galleta a la Caja</span>
+                        </button>
+                      </div>
+
+                      {/* Sección B (Combo): Caja de Empaque & Despacho */}
+                      <div className="space-y-3">
+                        <div className="bg-blue-50 p-3 rounded-xl border border-blue-200 flex justify-between items-center">
+                          <div>
+                            <h4 className="font-heading font-bold text-xs uppercase tracking-wider text-blue-900 flex items-center space-x-1.5">
+                              <span>📦</span>
+                              <span>Caja de Empaque & Despacho</span>
+                            </h4>
+                            <p className="text-[11px] text-blue-700 mt-0.5">
+                              Caja de cartón, stickers, papel para esta presentación. Se descuenta del inventario al hornear y armar el pack.
+                            </p>
+                          </div>
+                          <span className="text-[11px] text-blue-700 font-bold shrink-0 ml-2">
+                            {empaqueDespacho.length} ítem(s)
+                          </span>
+                        </div>
+
+                        <div className="border border-blue-200 rounded-xl overflow-hidden shadow-2xs">
+                          <div className="bg-blue-50 px-3 py-2 grid grid-cols-12 gap-2 text-[10px] font-bold uppercase tracking-wider text-blue-800 border-b border-blue-200">
+                            <div className="col-span-6">Insumo de Empaque</div>
+                            <div className="col-span-3">Cantidad por Caja</div>
+                            <div className="col-span-2 text-right">Costo</div>
+                            <div className="col-span-1"></div>
+                          </div>
+                          <div className="divide-y divide-blue-100 bg-white">
+                            {empaqueDespacho.length === 0 ? (
+                              <div className="p-5 text-center text-xs text-gray-400 font-medium">
+                                Sin empaque asignado. Agrega la Caja correspondiente (ej: 1 Caja Double Krum).
+                              </div>
+                            ) : (
+                              empaqueDespacho.map((top, idx) => {
+                                const targetInsumo = insumos.find((i) => i.id === top.insumoId) || top.insumo;
+                                const subtotal = Number((top.cantidad * (targetInsumo?.costoUnitario || 0)).toFixed(3));
+                                return (
+                                  <div key={idx} className="px-3 py-2 grid grid-cols-12 gap-2 items-center">
+                                    <div className="col-span-6">
+                                      <select
+                                        value={top.insumoId}
+                                        onChange={(e) => handleCambiarEmpaqueInsumo(idx, e.target.value)}
+                                        className="w-full px-2.5 py-1.5 bg-white border border-blue-200 rounded-lg text-xs font-semibold text-krumly-chocolate focus:ring-2 focus:ring-blue-400 focus:outline-none"
+                                      >
+                                        {insumos.map((ins) => (
+                                          <option key={ins.id} value={ins.id}>
+                                            {ins.nombre} (${ins.costoUnitario.toFixed(4)}/{ins.unidadMedida === 'gramos' ? 'g' : ins.unidadMedida})
+                                          </option>
+                                        ))}
+                                      </select>
+                                    </div>
+                                    <div className="col-span-3">
+                                      <input
+                                        type="number"
+                                        min="0"
+                                        step="0.1"
+                                        value={top.cantidad || ''}
+                                        onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); }}
+                                        onChange={(e) => handleCambiarEmpaqueCantidad(idx, e.target.value === '' ? 0 : parseFloat(e.target.value) || 0)}
+                                        className="w-full px-2 py-1.5 bg-white border border-blue-200 rounded-lg text-xs font-bold text-center text-krumly-chocolate focus:ring-2 focus:ring-blue-400 focus:outline-none"
+                                      />
+                                    </div>
+                                    <div className="col-span-2 text-right font-bold text-xs text-blue-800">
+                                      ${subtotal.toFixed(3)}
+                                    </div>
+                                    <div className="col-span-1 flex justify-center">
+                                      <button
+                                        type="button"
+                                        onClick={() => handleEliminarEmpaque(idx)}
+                                        className="p-1 text-gray-400 hover:text-red-500 rounded-lg transition-colors cursor-pointer"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                );
+                              })
+                            )}
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={handleAgregarEmpaque}
+                          className="inline-flex items-center space-x-1.5 border border-blue-400 text-blue-700 hover:bg-blue-50 font-bold px-3 py-2 rounded-xl text-xs transition-colors cursor-pointer shadow-2xs"
+                        >
+                          <Plus className="w-3.5 h-3.5 stroke-[3]" />
+                          <span>Agregar Caja / Empaque de Despacho</span>
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    /* ── VISTA PASO 2 PARA GALLETA INDIVIDUAL ── */
+                    <>
+                      {/* Sección A: Rellenos e Inclusiones (Fase Producción) */}
+                      <div className="space-y-3">
+                        <div className="bg-amber-50 p-3 rounded-xl border border-amber-200 flex justify-between items-center">
+                          <div>
+                            <h4 className="font-heading font-bold text-xs uppercase tracking-wider text-amber-900 flex items-center space-x-1.5">
+                              <span>🍪</span>
+                              <span>Rellenos e Inclusiones (Fase de Producción)</span>
+                            </h4>
+                            <p className="text-[11px] text-amber-700 mt-0.5">
+                              Van dentro de la masa antes de congelar. Se descuentan al hornear el lote.
+                            </p>
+                          </div>
+                          <span className="text-[11px] text-amber-700 font-bold shrink-0 ml-2">
+                            {rellenosProduccion.length} ítem(s)
+                          </span>
+                        </div>
+
+                        <div className="border border-amber-200 rounded-xl overflow-hidden shadow-2xs">
+                          <div className="bg-amber-50 px-3 py-2 grid grid-cols-12 gap-2 text-[10px] font-bold uppercase tracking-wider text-amber-800 border-b border-amber-200">
+                            <div className="col-span-6">Insumo (Relleno / Topping)</div>
+                            <div className="col-span-3">Cantidad (g/ml/ud)</div>
+                            <div className="col-span-2 text-right">Costo</div>
+                            <div className="col-span-1"></div>
+                          </div>
+                          <div className="divide-y divide-amber-100 bg-white">
+                            {rellenosProduccion.length === 0 ? (
+                              <div className="p-5 text-center text-xs text-gray-400 font-medium">
+                                Sin rellenos. Si tu galleta no lleva Nutella, chispas u otros rellenos internos, está bien dejarlo vacío.
+                              </div>
+                            ) : (
+                              rellenosProduccion.map((top, idx) => {
+                                const targetInsumo = insumos.find((i) => i.id === top.insumoId) || top.insumo;
+                                const subtotal = Number((top.cantidad * (targetInsumo?.costoUnitario || 0)).toFixed(3));
+                                return (
+                                  <div key={idx} className="px-3 py-2 grid grid-cols-12 gap-2 items-center">
+                                    <div className="col-span-6">
+                                      <select
+                                        value={top.insumoId}
+                                        onChange={(e) => handleCambiarRellenoInsumo(idx, e.target.value)}
+                                        className="w-full px-2.5 py-1.5 bg-white border border-amber-200 rounded-lg text-xs font-semibold text-krumly-chocolate focus:ring-2 focus:ring-amber-400 focus:outline-none"
+                                      >
+                                        {insumos.map((ins) => (
+                                          <option key={ins.id} value={ins.id}>
+                                            {ins.nombre} (${ins.costoUnitario.toFixed(4)}/{ins.unidadMedida === 'gramos' ? 'g' : ins.unidadMedida})
+                                          </option>
+                                        ))}
+                                      </select>
+                                    </div>
+                                    <div className="col-span-3">
+                                      <input
+                                        type="number"
+                                        min="0"
+                                        value={top.cantidad || ''}
+                                        onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); }}
+                                        onChange={(e) => handleCambiarRellenoCantidad(idx, e.target.value === '' ? 0 : parseFloat(e.target.value) || 0)}
+                                        className="w-full px-2 py-1.5 bg-white border border-amber-200 rounded-lg text-xs font-bold text-center text-krumly-chocolate focus:ring-2 focus:ring-amber-400 focus:outline-none"
+                                      />
+                                    </div>
+                                    <div className="col-span-2 text-right font-bold text-xs text-krumly-chocolate">
+                                      ${subtotal.toFixed(3)}
+                                    </div>
+                                    <div className="col-span-1 flex justify-center">
+                                      <button
+                                        type="button"
+                                        onClick={() => handleEliminarRelleno(idx)}
+                                        className="p-1 text-gray-400 hover:text-red-500 rounded-lg transition-colors cursor-pointer"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                );
+                              })
+                            )}
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={handleAgregarRelleno}
+                          className="inline-flex items-center space-x-1.5 border border-amber-500 text-amber-700 hover:bg-amber-50 font-bold px-3 py-2 rounded-xl text-xs transition-colors cursor-pointer shadow-2xs"
+                        >
+                          <Plus className="w-3.5 h-3.5 stroke-[3]" />
+                          <span>Agregar Relleno / Topping Interno</span>
+                        </button>
+                      </div>
+
+                      {/* Sección B: Empaque y Decoración Final (Fase Despacho) */}
+                      <div className="space-y-3">
+                        <div className="bg-blue-50 p-3 rounded-xl border border-blue-200 flex justify-between items-center">
+                          <div>
+                            <h4 className="font-heading font-bold text-xs uppercase tracking-wider text-blue-900 flex items-center space-x-1.5">
+                              <span>📦</span>
+                              <span>Empaque y Decoración Final (Fase de Despacho)</span>
+                            </h4>
+                            <p className="text-[11px] text-blue-700 mt-0.5">
+                              Caja, papel, sticker, drizzle por encima. Se descuentan automáticamente al vender en el POS.
+                              Usa fracciones (ej: <strong>0.5</strong> caja si la caja es para 2 galletas).
+                            </p>
+                          </div>
+                          <span className="text-[11px] text-blue-700 font-bold shrink-0 ml-2">
+                            {empaqueDespacho.length} ítem(s)
+                          </span>
+                        </div>
+
+                        <div className="border border-blue-200 rounded-xl overflow-hidden shadow-2xs">
+                          <div className="bg-blue-50 px-3 py-2 grid grid-cols-12 gap-2 text-[10px] font-bold uppercase tracking-wider text-blue-800 border-b border-blue-200">
+                            <div className="col-span-6">Insumo (Empaque / Decoración)</div>
+                            <div className="col-span-3">Cantidad por Galleta</div>
+                            <div className="col-span-2 text-right">Costo</div>
+                            <div className="col-span-1"></div>
+                          </div>
+                          <div className="divide-y divide-blue-100 bg-white">
+                            {empaqueDespacho.length === 0 ? (
+                              <div className="p-5 text-center text-xs text-gray-400 font-medium">
+                                Sin empaque configurado. Agrega Caja, Papel, Sticker, etc. y usa 0.5 si la caja es para 2 galletas.
+                              </div>
+                            ) : (
+                              empaqueDespacho.map((top, idx) => {
+                                const targetInsumo = insumos.find((i) => i.id === top.insumoId) || top.insumo;
+                                const subtotal = Number((top.cantidad * (targetInsumo?.costoUnitario || 0)).toFixed(3));
+                                return (
+                                  <div key={idx} className="px-3 py-2 grid grid-cols-12 gap-2 items-center">
+                                    <div className="col-span-6">
+                                      <select
+                                        value={top.insumoId}
+                                        onChange={(e) => handleCambiarEmpaqueInsumo(idx, e.target.value)}
+                                        className="w-full px-2.5 py-1.5 bg-white border border-blue-200 rounded-lg text-xs font-semibold text-krumly-chocolate focus:ring-2 focus:ring-blue-400 focus:outline-none"
+                                      >
+                                        {insumos.map((ins) => (
+                                          <option key={ins.id} value={ins.id}>
+                                            {ins.nombre} (${ins.costoUnitario.toFixed(4)}/{ins.unidadMedida === 'gramos' ? 'g' : ins.unidadMedida})
+                                          </option>
+                                        ))}
+                                      </select>
+                                    </div>
+                                    <div className="col-span-3">
+                                      <input
+                                        type="number"
+                                        min="0"
+                                        step="0.1"
+                                        value={top.cantidad || ''}
+                                        onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); }}
+                                        onChange={(e) => handleCambiarEmpaqueCantidad(idx, e.target.value === '' ? 0 : parseFloat(e.target.value) || 0)}
+                                        className="w-full px-2 py-1.5 bg-white border border-blue-200 rounded-lg text-xs font-bold text-center text-krumly-chocolate focus:ring-2 focus:ring-blue-400 focus:outline-none"
+                                      />
+                                    </div>
+                                    <div className="col-span-2 text-right font-bold text-xs text-blue-800">
+                                      ${subtotal.toFixed(3)}
+                                    </div>
+                                    <div className="col-span-1 flex justify-center">
+                                      <button
+                                        type="button"
+                                        onClick={() => handleEliminarEmpaque(idx)}
+                                        className="p-1 text-gray-400 hover:text-red-500 rounded-lg transition-colors cursor-pointer"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                );
+                              })
+                            )}
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={handleAgregarEmpaque}
+                          className="inline-flex items-center space-x-1.5 border border-blue-400 text-blue-700 hover:bg-blue-50 font-bold px-3 py-2 rounded-xl text-xs transition-colors cursor-pointer shadow-2xs"
+                        >
+                          <Plus className="w-3.5 h-3.5 stroke-[3]" />
+                          <span>Agregar Empaque / Decoración Final</span>
+                        </button>
+                      </div>
+                    </>
+                  )}
                 </div>
               )}
 
@@ -930,7 +1327,9 @@ export const ProductosPage: React.FC = () => {
                       Paso 3: Precio de Venta, Costos Indirectos y Margen Neto
                     </h4>
                     <p className="text-[11px] text-gray-500 mt-0.5">
-                      Ajusta los empaques, mano de obra, depreciación y define el precio público final en USD.
+                      {esCombo
+                        ? 'Ajusta costos de empaque, mano de obra del armado y define el precio público final en USD del combo.'
+                        : 'Ajusta empaques, mano de obra, depreciación y define el precio público final en USD.'}
                     </p>
                   </div>
 
@@ -1008,9 +1407,27 @@ export const ProductosPage: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
+                  {/* Stock Fields (Adapta si es combo o individual) */}
+                  <div className={`grid gap-3 ${esCombo ? 'grid-cols-2' : 'grid-cols-3'}`}>
+                    {!esCombo && (
+                      <div>
+                        <label className="block text-xs font-bold text-blue-800 mb-1">🧊 Masas en Freezer</label>
+                        <input
+                          type="number"
+                          min="0"
+                          value={stockCongelador || ''}
+                          onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); }}
+                          onChange={(e) => setStockCongelador(e.target.value === '' ? 0 : parseInt(e.target.value, 10) || 0)}
+                          placeholder="0"
+                          className="w-full px-3.5 py-2 bg-blue-50/50 border border-blue-200 rounded-xl text-xs font-bold text-blue-900 focus:ring-2 focus:ring-blue-400 focus:outline-none"
+                        />
+                      </div>
+                    )}
+
                     <div>
-                      <label className="block text-xs font-bold text-gray-700 mb-1">Stock Inicial</label>
+                      <label className="block text-xs font-bold text-gray-700 mb-1">
+                        {esCombo ? '📦 Cajas Listas para Venta' : '✨ Listas para Venta (POS)'}
+                      </label>
                       <input
                         type="number"
                         min="0"
@@ -1022,7 +1439,9 @@ export const ProductosPage: React.FC = () => {
                     </div>
 
                     <div>
-                      <label className="block text-xs font-bold text-gray-700 mb-1">Stock Mínimo Alerta</label>
+                      <label className="block text-xs font-bold text-gray-700 mb-1">
+                        {esCombo ? 'Stock Mínimo Alerta (Cajas)' : 'Stock Mínimo en Freezer (Alerta de Amasado)'}
+                      </label>
                       <input
                         type="number"
                         min="0"
@@ -1031,6 +1450,9 @@ export const ProductosPage: React.FC = () => {
                         onChange={(e) => setStockMinimo(e.target.value === '' ? 0 : parseInt(e.target.value, 10) || 0)}
                         className="w-full px-3.5 py-2 bg-krumly-cream/30 border border-krumly-border rounded-xl text-xs font-bold text-krumly-chocolate focus:ring-2 focus:ring-krumly-red focus:outline-none"
                       />
+                      <p className="text-[10px] text-gray-400 mt-1">
+                        {esCombo ? 'Avisa cuando queden pocas cajas.' : 'Avisa cuando las masas crudas en congelador bajen de este umbral para volver a amasar.'}
+                      </p>
                     </div>
                   </div>
 
@@ -1043,7 +1465,7 @@ export const ProductosPage: React.FC = () => {
                           ⚠️ ¡Alerta Financiera de Pérdida!
                         </h5>
                         <p className="text-[11px] font-medium leading-tight">
-                          El Precio de Venta (${precioVenta.toFixed(2)}) es menor o igual al Costo Directo Total (${costoDirectoTotalCalculado.toFixed(2)} USD). Esta galleta no obtendrá margen de ganancia.
+                          El Precio de Venta (${precioVenta.toFixed(2)}) es menor o igual al Costo Directo Total (${costoDirectoTotalCalculado.toFixed(2)} USD). Este producto no obtendrá margen de ganancia.
                         </p>
                       </div>
                     </div>
@@ -1052,12 +1474,20 @@ export const ProductosPage: React.FC = () => {
                   {/* Ficha Resumen Financiero Completa */}
                   <div className="bg-[#FFF9F5] p-4 rounded-xl border border-krumly-border space-y-2 text-xs">
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-gray-600">
-                      <div>
-                        <span>Costo Masa:</span> <strong className="text-krumly-chocolate">${costoMasaCalculado.toFixed(3)}</strong>
-                      </div>
-                      <div>
-                        <span>Rellenos:</span> <strong className="text-amber-700">${costoToppingsCalculado.toFixed(3)}</strong>
-                      </div>
+                      {esCombo ? (
+                        <div>
+                          <span>Galletas:</span> <strong className="text-purple-800">${costoGalletasComboCalculado.toFixed(2)}</strong>
+                        </div>
+                      ) : (
+                        <div>
+                          <span>Costo Masa:</span> <strong className="text-krumly-chocolate">${costoMasaCalculado.toFixed(3)}</strong>
+                        </div>
+                      )}
+                      {!esCombo && (
+                        <div>
+                          <span>Rellenos:</span> <strong className="text-amber-700">${costoToppingsCalculado.toFixed(3)}</strong>
+                        </div>
+                      )}
                       <div>
                         <span>Empaque (auto):</span> <strong className="text-blue-700">${costoEmpaqueCalculado.toFixed(3)}</strong>
                       </div>

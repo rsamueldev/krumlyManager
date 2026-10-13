@@ -11,6 +11,21 @@ export interface ProductoInsumoAdicional {
   insumo?: InsumoItem;
 }
 
+export interface ProductoComboItem {
+  id?: string;
+  comboId?: string;
+  productoId: string;
+  cantidad: number;
+  producto?: {
+    id: string;
+    nombre: string;
+    stockCongelador: number;
+    stockActual: number;
+    precioVenta: number;
+    costoDirectoTotal?: number;
+  };
+}
+
 export interface Producto {
   id: string;
   nombre: string;
@@ -28,10 +43,13 @@ export interface Producto {
   margenGananciaPorcentaje: number;
   stockActual: number;
   stockMinimo: number;
+  esCombo?: boolean;
+  stockCongelador?: number;
   activo: boolean;
   categoria?: { id: string; nombre: string; tipo: string };
   receta?: { id: string; nombre: string; costoPorGramo: number; pesoTotalMezclaGramos: number };
   insumosAdicionales?: ProductoInsumoAdicional[];
+  comboItems?: ProductoComboItem[];
   createdAt?: string;
   updatedAt?: string;
 }

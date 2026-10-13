@@ -7,6 +7,11 @@ export interface InsumoAdicionalInput {
   tipoUso: TipoUsoInsumo;  // 'produccion' | 'despacho'
 }
 
+export interface ComboItemInput {
+  productoId: string;
+  cantidad: number;
+}
+
 export interface CrearProductoData {
   nombre: string;
   categoriaId?: string;
@@ -23,7 +28,10 @@ export interface CrearProductoData {
   margenGananciaPorcentaje?: number;
   stockActual?: number;
   stockMinimo?: number;
+  esCombo?: boolean;
+  stockCongelador?: number;
   insumosAdicionales?: InsumoAdicionalInput[];
+  comboItems?: ComboItemInput[];
 }
 
 export interface ActualizarProductoData {
@@ -42,8 +50,11 @@ export interface ActualizarProductoData {
   margenGananciaPorcentaje?: number;
   stockActual?: number;
   stockMinimo?: number;
+  esCombo?: boolean;
+  stockCongelador?: number;
   activo?: boolean;
   insumosAdicionales?: InsumoAdicionalInput[];
+  comboItems?: ComboItemInput[];
 }
 
 export interface ProductoRepositoryPort {

@@ -32,6 +32,10 @@ class CrearProductoDto {
   precioVenta!: number;
   stockActual?: number;
   stockMinimo?: number;
+  esCombo?: boolean;
+  stockCongelador?: number;
+  insumosAdicionales?: any[];
+  comboItems?: any[];
 }
 
 class ActualizarProductoDto {
@@ -47,7 +51,11 @@ class ActualizarProductoDto {
   precioVenta?: number;
   stockActual?: number;
   stockMinimo?: number;
+  esCombo?: boolean;
+  stockCongelador?: number;
   activo?: boolean;
+  insumosAdicionales?: any[];
+  comboItems?: any[];
 }
 
 @Controller('productos')

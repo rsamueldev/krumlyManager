@@ -50,7 +50,7 @@ interface DataContextType {
   agregarProductoLocal: (producto: Producto) => void;
   actualizarProductoLocal: (producto: Producto) => void;
   eliminarProductoLocal: (id: string) => void;
-  actualizarStockProductoLocal: (id: string, nuevoStock: number) => void;
+  actualizarStockProductoLocal: (id: string, nuevoStock: number, nuevoStockCongelador?: number) => void;
 
   agregarClienteLocal: (cliente: Cliente) => void;
   actualizarClienteLocal: (cliente: Cliente) => void;
@@ -436,9 +436,16 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setProductos((prev) => prev.filter((p) => p.id !== id));
   }, []);
 
-  const actualizarStockProductoLocal = useCallback((id: string, nuevoStock: number) => {
+  const actualizarStockProductoLocal = useCallback((id: string, nuevoStock: number, nuevoStockCongelador?: number) => {
     setProductos((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, stockActual: nuevoStock } : p))
+      prev.map((p) => {
+        if (p.id !== id) return p;
+        return {
+          ...p,
+          stockActual: nuevoStock,
+          ...(nuevoStockCongelador !== undefined && { stockCongelador: nuevoStockCongelador }),
+        };
+      })
     );
   }, []);
 

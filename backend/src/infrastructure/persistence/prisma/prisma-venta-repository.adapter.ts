@@ -29,32 +29,84 @@ export class PrismaVentaRepositoryAdapter implements VentaRepositoryPort {
               where: { tipoUso: 'despacho' },
               include: { insumo: true },
             },
+            comboItems: {
+              include: { producto: true },
+            },
           },
         });
         if (!prod) {
           throw new Error(`El producto especificado (${item.productoId}) no existe.`);
         }
-        if (prod.stockActual < cant) {
-          throw new Error(
-            `Stock insuficiente para "${prod.nombre}". Disponible: ${prod.stockActual}, solicitado: ${cant}`,
-          );
-        }
 
-        // Descontar stock del producto terminado (galleta congelada)
-        await tx.producto.update({
-          where: { id: item.productoId },
-          data: { stockActual: { decrement: cant } },
-        });
+        if (prod.esCombo) {
+          // Si es un combo: determinar galletas hijas (del POS o de la receta base)
+          const galletasHijas: Array<{ productoId: string; cantidad: number }> =
+            item.galletasSeleccionadas && item.galletasSeleccionadas.length > 0
+              ? item.galletasSeleccionadas
+              : (prod.comboItems || []).map((ci: any) => ({ productoId: ci.productoId, cantidad: ci.cantidad }));
 
-        // Descontar stock de insumos de despacho (empaque + decoración final)
-        // Cada galleta vendida consume la fracción configurada (ej: 0.5 caja)
-        for (const insumoDespacho of (prod as any).insumosAdicionales || []) {
-          const cantInsumo = Number(insumoDespacho.cantidad) * cant;
-          if (cantInsumo > 0) {
-            await tx.insumo.update({
-              where: { id: insumoDespacho.insumoId },
-              data: { stockActual: { decrement: cantInsumo } },
+          if (galletasHijas.length > 0) {
+            // Descontar cada galleta hija del stock de venta
+            for (const gh of galletasHijas) {
+              const cantGalleta = (Number(gh.cantidad) || 1) * cant;
+              const prodHijo = await tx.producto.findUnique({ where: { id: gh.productoId } });
+              if (!prodHijo) {
+                throw new Error(`La galleta seleccionada para el combo (${gh.productoId}) no existe.`);
+              }
+              if (prodHijo.stockActual < cantGalleta) {
+                throw new Error(
+                  `Stock insuficiente de "${prodHijo.nombre}" para armar el combo. Disponible: ${prodHijo.stockActual}, requerido: ${cantGalleta}`,
+                );
+              }
+              await tx.producto.update({
+                where: { id: gh.productoId },
+                data: { stockActual: { decrement: cantGalleta } },
+              });
+            }
+          } else {
+            // Si no tiene galletas hijas, descontar del stock pre-ensamblado del combo
+            if (prod.stockActual < cant) {
+              throw new Error(
+                `Stock insuficiente para "${prod.nombre}". Disponible: ${prod.stockActual}, solicitado: ${cant}`,
+              );
+            }
+            await tx.producto.update({
+              where: { id: item.productoId },
+              data: { stockActual: { decrement: cant } },
             });
+          }
+
+          // Descontar empaque propio del combo (caja Double Krum, caja Triple Krum, etc.)
+          for (const insumoDespacho of (prod as any).insumosAdicionales || []) {
+            const cantInsumo = Number(insumoDespacho.cantidad) * cant;
+            if (cantInsumo > 0) {
+              await tx.insumo.update({
+                where: { id: insumoDespacho.insumoId },
+                data: { stockActual: { decrement: cantInsumo } },
+              });
+            }
+          }
+        } else {
+          // Galleta individual normal
+          if (prod.stockActual < cant) {
+            throw new Error(
+              `Stock insuficiente para "${prod.nombre}". Disponible: ${prod.stockActual}, solicitado: ${cant}`,
+            );
+          }
+          await tx.producto.update({
+            where: { id: item.productoId },
+            data: { stockActual: { decrement: cant } },
+          });
+
+          // Descontar stock de empaque individual
+          for (const insumoDespacho of (prod as any).insumosAdicionales || []) {
+            const cantInsumo = Number(insumoDespacho.cantidad) * cant;
+            if (cantInsumo > 0) {
+              await tx.insumo.update({
+                where: { id: insumoDespacho.insumoId },
+                data: { stockActual: { decrement: cantInsumo } },
+              });
+            }
           }
         }
       }
@@ -182,11 +234,24 @@ export class PrismaVentaRepositoryAdapter implements VentaRepositoryPort {
             if (prod) {
               const cant = Math.max(1, Number(item.cantidad) || 1);
               const precio = Number(item.precioUnitario) || Number(prod.precioVenta) || 0;
-              const nuevoStock = Math.max(0, prod.stockActual - cant);
-              await tx.producto.update({
-                where: { id: prod.id },
-                data: { stockActual: nuevoStock },
-              });
+              if (prod.esCombo && (item as any).galletasSeleccionadas && (item as any).galletasSeleccionadas.length > 0) {
+                for (const gh of (item as any).galletasSeleccionadas) {
+                  const cantGh = (Number(gh.cantidad) || 1) * cant;
+                  const hijo = await tx.producto.findUnique({ where: { id: gh.productoId } });
+                  if (hijo) {
+                    await tx.producto.update({
+                      where: { id: hijo.id },
+                      data: { stockActual: Math.max(0, hijo.stockActual - cantGh) },
+                    });
+                  }
+                }
+              } else {
+                const nuevoStock = Math.max(0, prod.stockActual - cant);
+                await tx.producto.update({
+                  where: { id: prod.id },
+                  data: { stockActual: nuevoStock },
+                });
+              }
               detallesValidos.push({
                 productoId: prod.id,
                 cantidad: cant,

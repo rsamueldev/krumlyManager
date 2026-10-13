@@ -169,6 +169,10 @@ export const ModalPagoMixto: React.FC<ModalPagoMixtoProps> = ({
         productoId: item.producto.id,
         cantidad: item.cantidad,
         precioUnitario: item.producto.precioVenta,
+        galletasSeleccionadas: item.galletasSeleccionadas?.map((g) => ({
+          productoId: g.producto.id,
+          cantidad: 1,
+        })),
       }));
 
       // Si es pago simple (único), asegurar que cubra el 100%
@@ -208,10 +212,17 @@ export const ModalPagoMixto: React.FC<ModalPagoMixtoProps> = ({
 
       try {
         const response = await createVentaApi(payload);
-        // Descuento inmediato de stock en la UI
+        // Descuento inmediato de stock en la UI (tanto para galletas hijas de combos como productos individuales)
         cart.forEach((item) => {
-          const nuevoStock = Math.max(0, item.producto.stockActual - item.cantidad);
-          actualizarStockProductoLocal(item.producto.id, nuevoStock);
+          if (item.galletasSeleccionadas && item.galletasSeleccionadas.length > 0) {
+            item.galletasSeleccionadas.forEach((g) => {
+              const nuevoStock = Math.max(0, (g.producto.stockActual || 0) - item.cantidad);
+              actualizarStockProductoLocal(g.producto.id, nuevoStock);
+            });
+          } else {
+            const nuevoStock = Math.max(0, (item.producto.stockActual || 0) - item.cantidad);
+            actualizarStockProductoLocal(item.producto.id, nuevoStock);
+          }
         });
         // Pasar a pantalla de recibo de inmediato
         onVentaCompletada(response.codigoVenta, response.totalVenta);

@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { ProductoEntity, ProductoInsumoAdicionalEntity } from '../../../domain/entities/producto.entity';
+import { ProductoEntity, ProductoInsumoAdicionalEntity, ProductoComboItemEntity } from '../../../domain/entities/producto.entity';
 import { CategoriaEntity } from '../../../domain/entities/categoria.entity';
 import { RecetaEntity } from '../../../domain/entities/receta.entity';
 import { InsumoEntity, UnidadMedidaEnum } from '../../../domain/entities/insumo.entity';
@@ -64,6 +64,24 @@ export class PrismaProductoRepositoryAdapter implements ProductoRepositoryPort {
       );
     });
 
+    const comboItemsMapped = (raw.comboItems || []).map((ci: any) => {
+      return new ProductoComboItemEntity(
+        ci.id,
+        ci.comboId,
+        ci.productoId,
+        Number(ci.cantidad || 1),
+        ci.producto
+          ? {
+              id: ci.producto.id,
+              nombre: ci.producto.nombre,
+              stockCongelador: Number(ci.producto.stockCongelador || 0),
+              stockActual: Number(ci.producto.stockActual || 0),
+              precioVenta: Number(ci.producto.precioVenta || 0),
+            }
+          : undefined,
+      );
+    });
+
     return new ProductoEntity(
       raw.id,
       raw.nombre,
@@ -85,6 +103,9 @@ export class PrismaProductoRepositoryAdapter implements ProductoRepositoryPort {
       categoriaEntity,
       recetaEntity,
       insumosAdicionalesMapped,
+      Boolean(raw.esCombo),
+      Number(raw.stockCongelador || 0),
+      comboItemsMapped,
       raw.createdAt,
       raw.updatedAt,
     );
@@ -98,6 +119,11 @@ export class PrismaProductoRepositoryAdapter implements ProductoRepositoryPort {
         insumosAdicionales: {
           include: {
             insumo: true,
+          },
+        },
+        comboItems: {
+          include: {
+            producto: true,
           },
         },
       },
@@ -115,6 +141,11 @@ export class PrismaProductoRepositoryAdapter implements ProductoRepositoryPort {
         insumosAdicionales: {
           include: {
             insumo: true,
+          },
+        },
+        comboItems: {
+          include: {
+            producto: true,
           },
         },
       },
@@ -138,14 +169,24 @@ export class PrismaProductoRepositoryAdapter implements ProductoRepositoryPort {
         costoDirectoTotal: data.costoDirectoTotal,
         precioVenta: data.precioVenta,
         margenGananciaPorcentaje: data.margenGananciaPorcentaje,
-        stockActual: data.stockActual,
-        stockMinimo: data.stockMinimo,
+        stockActual: data.stockActual ?? 0,
+        stockMinimo: data.stockMinimo ?? 10,
+        esCombo: data.esCombo ?? false,
+        stockCongelador: data.stockCongelador ?? 0,
         insumosAdicionales: data.insumosAdicionales
           ? {
               create: data.insumosAdicionales.map((i) => ({
                 insumoId: i.insumoId,
                 cantidad: i.cantidad,
                 tipoUso: i.tipoUso || 'produccion',
+              })),
+            }
+          : undefined,
+        comboItems: data.comboItems && data.comboItems.length > 0
+          ? {
+              create: data.comboItems.map((ci) => ({
+                productoId: ci.productoId,
+                cantidad: ci.cantidad || 1,
               })),
             }
           : undefined,
@@ -158,6 +199,11 @@ export class PrismaProductoRepositoryAdapter implements ProductoRepositoryPort {
             insumo: true,
           },
         },
+        comboItems: {
+          include: {
+            producto: true,
+          },
+        },
       },
     });
     return this.mapToDomain(created);
@@ -167,6 +213,12 @@ export class PrismaProductoRepositoryAdapter implements ProductoRepositoryPort {
     if (data.insumosAdicionales) {
       await this.prisma.productoInsumoAdicional.deleteMany({
         where: { productoId: id },
+      });
+    }
+
+    if (data.comboItems) {
+      await this.prisma.productoComboItem.deleteMany({
+        where: { comboId: id },
       });
     }
 
@@ -188,6 +240,8 @@ export class PrismaProductoRepositoryAdapter implements ProductoRepositoryPort {
         ...(data.margenGananciaPorcentaje !== undefined && { margenGananciaPorcentaje: data.margenGananciaPorcentaje }),
         ...(data.stockActual !== undefined && { stockActual: data.stockActual }),
         ...(data.stockMinimo !== undefined && { stockMinimo: data.stockMinimo }),
+        ...(data.esCombo !== undefined && { esCombo: data.esCombo }),
+        ...(data.stockCongelador !== undefined && { stockCongelador: data.stockCongelador }),
         ...(data.activo !== undefined && { activo: data.activo }),
         insumosAdicionales: data.insumosAdicionales
           ? {
@@ -198,6 +252,14 @@ export class PrismaProductoRepositoryAdapter implements ProductoRepositoryPort {
               })),
             }
           : undefined,
+        comboItems: data.comboItems && data.comboItems.length > 0
+          ? {
+              create: data.comboItems.map((ci) => ({
+                productoId: ci.productoId,
+                cantidad: ci.cantidad || 1,
+              })),
+            }
+          : undefined,
       },
       include: {
         categoria: true,
@@ -205,6 +267,11 @@ export class PrismaProductoRepositoryAdapter implements ProductoRepositoryPort {
         insumosAdicionales: {
           include: {
             insumo: true,
+          },
+        },
+        comboItems: {
+          include: {
+            producto: true,
           },
         },
       },

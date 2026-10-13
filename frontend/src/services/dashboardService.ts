@@ -8,12 +8,21 @@ export interface TopProductoVendido {
   gananciaUsd: number;
 }
 
+export interface DesgloseProductoPeriodo {
+  productoId: string;
+  nombre: string;
+  esCombo: boolean;
+  cantidadVendida: number;
+  totalVentasUsd: number;
+}
+
 export interface AlertaStockBajo {
   tipo: 'producto' | 'insumo';
   id: string;
   nombre: string;
   stockActual: number;
   stockMinimo: number;
+  stockCongelador?: number;
   unidadMedida?: string;
 }
 
@@ -34,11 +43,25 @@ export interface DashboardMetrics {
   porcentajePuntoEquilibrioAlcanzado: number;
   topProductos: TopProductoVendido[];
   alertasStock: AlertaStockBajo[];
+  totalUnidadesVendidas: number;
+  ticketPromedioUsd: number;
+  desgloseProductos: DesgloseProductoPeriodo[];
+  periodo: string;
 }
 
-export async function fetchDashboardMetricsApi(): Promise<DashboardMetrics | null> {
+export async function fetchDashboardMetricsApi(
+  periodo: string = 'hoy',
+  desde?: string,
+  hasta?: string,
+): Promise<DashboardMetrics | null> {
   try {
-    const res = await fetch(`${API_URL}/dashboard/metrics`, {
+    const params = new URLSearchParams();
+    if (periodo) params.set('periodo', periodo);
+    if (desde) params.set('desde', desde);
+    if (hasta) params.set('hasta', hasta);
+
+    const queryString = params.toString() ? `?${params.toString()}` : '';
+    const res = await fetch(`${API_URL}/dashboard/metrics${queryString}`, {
       headers: getAuthHeaders(),
     });
 

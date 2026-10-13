@@ -5,6 +5,8 @@ import { PrismaProduccionRepositoryAdapter } from '../persistence/prisma/prisma-
 import { RegistrarLoteUseCase } from '../../application/use-cases/produccion/registrar-lote.use-case';
 import { SimularProduccionUseCase } from '../../application/use-cases/produccion/simular-produccion.use-case';
 import { ObtenerHistorialLotesUseCase } from '../../application/use-cases/produccion/obtener-historial-lotes.use-case';
+import { HornearLoteUseCase } from '../../application/use-cases/produccion/hornear-lote.use-case';
+import { SimularHorneadoUseCase } from '../../application/use-cases/produccion/simular-horneado.use-case';
 import { ProduccionController } from '../controllers/produccion.controller';
 
 @Module({
@@ -18,11 +20,15 @@ import { ProduccionController } from '../controllers/produccion.controller';
     RegistrarLoteUseCase,
     SimularProduccionUseCase,
     ObtenerHistorialLotesUseCase,
+    HornearLoteUseCase,
+    SimularHorneadoUseCase,
   ],
   exports: [
     RegistrarLoteUseCase,
     SimularProduccionUseCase,
     ObtenerHistorialLotesUseCase,
+    HornearLoteUseCase,
+    SimularHorneadoUseCase,
   ],
 })
 export class ProduccionModule {}

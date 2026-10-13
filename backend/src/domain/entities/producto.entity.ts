@@ -16,6 +16,16 @@ export class ProductoInsumoAdicionalEntity {
   ) {}
 }
 
+export class ProductoComboItemEntity {
+  constructor(
+    public readonly id: string,
+    public readonly comboId: string,
+    public readonly productoId: string,
+    public readonly cantidad: number = 1,
+    public readonly producto?: { id: string; nombre: string; stockCongelador: number; stockActual: number; precioVenta?: number },
+  ) {}
+}
+
 export class ProductoEntity {
   constructor(
     public readonly id: string,
@@ -38,6 +48,9 @@ export class ProductoEntity {
     public readonly categoria?: CategoriaEntity,
     public readonly receta?: RecetaEntity,
     public readonly insumosAdicionales: ProductoInsumoAdicionalEntity[] = [],
+    public readonly esCombo: boolean = false,
+    public readonly stockCongelador: number = 0,
+    public readonly comboItems: ProductoComboItemEntity[] = [],
     public readonly createdAt?: Date,
     public readonly updatedAt?: Date,
   ) {}

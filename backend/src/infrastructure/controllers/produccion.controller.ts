@@ -10,6 +10,8 @@ import {
 import { RegistrarLoteUseCase } from '../../application/use-cases/produccion/registrar-lote.use-case';
 import { SimularProduccionUseCase } from '../../application/use-cases/produccion/simular-produccion.use-case';
 import { ObtenerHistorialLotesUseCase } from '../../application/use-cases/produccion/obtener-historial-lotes.use-case';
+import { HornearLoteUseCase } from '../../application/use-cases/produccion/hornear-lote.use-case';
+import { SimularHorneadoUseCase } from '../../application/use-cases/produccion/simular-horneado.use-case';
 import { RolUsuario } from '../../domain/entities/usuario.entity';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Roles } from '../auth/roles.decorator';
@@ -21,6 +23,13 @@ class RegistrarLoteDto {
   notas?: string;
 }
 
+class HornearLoteDto {
+  productoId!: string;
+  cantidad!: number;
+  notas?: string;
+  galletasSeleccionadas?: Array<{ productoId: string; cantidad: number }>;
+}
+
 @Controller('produccion')
 @UseGuards(JwtAuthGuard)
 export class ProduccionController {
@@ -28,6 +37,8 @@ export class ProduccionController {
     private readonly registrarLoteUseCase: RegistrarLoteUseCase,
     private readonly simularProduccionUseCase: SimularProduccionUseCase,
     private readonly obtenerHistorialLotesUseCase: ObtenerHistorialLotesUseCase,
+    private readonly hornearLoteUseCase: HornearLoteUseCase,
+    private readonly simularHorneadoUseCase: SimularHorneadoUseCase,
   ) {}
 
   @Get('simular')
@@ -37,6 +48,15 @@ export class ProduccionController {
   ) {
     const cantidad = parseInt(cantidadStr, 10) || 1;
     return this.simularProduccionUseCase.execute(productoId, cantidad);
+  }
+
+  @Get('simular-horneado')
+  async simularHorneado(
+    @Query('productoId') productoId: string,
+    @Query('cantidad') cantidadStr: string,
+  ) {
+    const cantidad = parseInt(cantidadStr, 10) || 1;
+    return this.simularHorneadoUseCase.execute(productoId, cantidad);
   }
 
   @Get('lotes')
@@ -55,6 +75,20 @@ export class ProduccionController {
       cantidadProducida: dto.cantidadProducida,
       usuarioId,
       notas: dto.notas,
+    });
+  }
+
+  @Post('hornear')
+  @UseGuards(RolesGuard)
+  @Roles(RolUsuario.ADMIN, RolUsuario.CAJERO)
+  async hornearLote(@Req() req: any, @Body() dto: HornearLoteDto) {
+    const usuarioId = req.user?.userId || req.user?.id || req.user?.sub;
+    return this.hornearLoteUseCase.execute({
+      productoId: dto.productoId,
+      cantidad: dto.cantidad,
+      usuarioId,
+      notas: dto.notas,
+      galletasSeleccionadas: dto.galletasSeleccionadas,
     });
   }
 }

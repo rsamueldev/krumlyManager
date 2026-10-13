@@ -7,9 +7,10 @@ export class LoteProduccionEntity {
     public readonly fechaProduccion?: Date,
     public readonly notas?: string | null,
     public readonly usuarioId?: string,
-    public readonly producto?: { id: string; nombre: string; stockActual: number },
+    public readonly producto?: { id: string; nombre: string; stockActual: number; stockCongelador?: number },
     public readonly receta?: { id: string; nombre: string },
     public readonly usuario?: { id: string; username: string },
+    public readonly tipoLote: string = 'amasado',
     public readonly createdAt?: Date,
   ) {}
 }
